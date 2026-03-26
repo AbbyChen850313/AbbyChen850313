@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>帳號綁定</title>
+  <?!= include('_styles'); ?>
+</head>
+<body>
+
+<div class="header">
+  <h1>🔗 帳號綁定</h1>
+  <div class="subtitle">首次登入請完成綁定</div>
+</div>
+
+<div class="info-bar" style="margin-top:16px;text-align:center">
+  <div id="bindStatus">
+    <div class="loading"><div class="spinner"></div>驗證身份中...</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const liffId = '<?= liffId ?>';
+
+async function init() {
+  const s = document.createElement('script');
+  s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
+  s.onload = async () => {
+    try {
+      const config = await callGAS('getConfig', []);
+      await liff.init({ liffId: liffId || config.liffId });
+
+      if (!liff.isLoggedIn()) {
+        liff.login({ redirectUri: location.href });
+        return;
+      }
+
+      const profile = await liff.getProfile();
+      const uid = profile.userId;
+      const displayName = profile.displayName;
+
+      // 嘗試綁定
+      const result = await callGAS('apiBindAccount', [uid, displayName]);
+
+      if (result.alreadyBound) {
+        // 已綁定但可能狀態是待確認
+        const managerInfo = await callGAS('apiGetManagerInfo', [uid]);
+        if (managerInfo) {
+          // 已授權，導到 dashboard
+          location.href = `?page=dashboard&uid=${encodeURIComponent(uid)}`;
+        } else {
+          showPending(displayName);
+        }
+      } else {
+        showPending(displayName);
+      }
+    } catch (err) {
+      showError(err.message);
+    }
+  };
+  document.head.appendChild(s);
+}
+
+function showPending(name) {
+  document.getElementById('bindStatus').innerHTML = `
+    <div style="padding:20px;text-align:center">
+      <div style="font-size:40px;margin-bottom:12px">⏳</div>
+      <div style="font-size:16px;font-weight:bold;margin-bottom:8px">帳號已記錄</div>
+      <div style="font-size:13px;color:#888;margin-bottom:16px">
+        您的 LINE 帳號（${name}）已送出綁定申請。<br>
+        請等待 HR 確認身份後即可使用系統。
+      </div>
+      <div style="font-size:12px;color:#aaa">
+        確認後您將收到 LINE 通知，屆時重新開啟即可。
+      </div>
+    </div>`;
+}
+
+function showError(msg) {
+  document.getElementById('bindStatus').innerHTML = `
+    <div style="padding:20px;text-align:center;color:#f44336">${msg}</div>`;
+}
+
+function callGAS(fn, args) {
+  return new Promise((resolve, reject) => {
+    let runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+    runner[fn](...(args || []));
+  });
+}
+
+init();
+</script>
+</body>
+</html>
