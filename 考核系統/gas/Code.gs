@@ -23,17 +23,22 @@ function doGet(e) {
       template = HtmlService.createTemplateFromFile('score');
       template.employeeId = e.parameter.eid || '';
       template.lineUid = lineUid;
+      template.liffId = CONFIG.LIFF_ID;
       break;
     case 'admin':
       template = HtmlService.createTemplateFromFile('admin');
       template.lineUid = lineUid;
+      template.liffId = CONFIG.LIFF_ID;
       break;
     case 'bind':
       template = HtmlService.createTemplateFromFile('bind');
+      template.lineUid = '';
+      template.liffId = CONFIG.LIFF_ID;
       break;
     default:
       template = HtmlService.createTemplateFromFile('dashboard');
       template.lineUid = lineUid;
+      template.liffId = CONFIG.LIFF_ID;
   }
 
   return template.evaluate()
