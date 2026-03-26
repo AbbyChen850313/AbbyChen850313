@@ -4,10 +4,10 @@
 
 // ★ 設定區：部署後填入以下值
 const CONFIG = {
-  SPREADSHEET_ID: '',          // 考核系統後台 Google Sheet ID
-  HR_SPREADSHEET_ID: '',       // HR 員工基本資料 Sheet ID
-  LINE_BOT_TOKEN: '',          // LINE Messaging API Channel Access Token
-  LIFF_ID: '',                 // LINE LIFF App ID
+  SPREADSHEET_ID: '',          // ★ 待填：考核系統後台 Google Sheet ID
+  HR_SPREADSHEET_ID: '',       // ★ 待填：HR 員工基本資料 Sheet ID
+  LINE_BOT_TOKEN: 'vC9j7A61kp6mlsd450SyLzHMmFB4fzF0piR/5skfHn4dDjGRSZU39pA72441l2gYKx6WSpFt+K63v87uF+KiKuPOe3yvqDeG4b5SQRAsJLm2nbauVyFwtb7b7azpw2Sdpd0xtxcEyFN3/OFrpiU0dAdB04t89/1O/w1cDnyilFU=',
+  LIFF_ID: '2009611318-5UphK9JK',
 };
 
 /**
