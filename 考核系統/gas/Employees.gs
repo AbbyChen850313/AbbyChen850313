@@ -26,23 +26,20 @@ const GRADE_SCORES = {
  */
 function syncEmployees() {
   const hrSS = SpreadsheetApp.openById(CONFIG.HR_SPREADSHEET_ID);
-  const hrSheet = hrSS.getSheets()[0];
+  const hrSheet = hrSS.getSheetByName('(人工打)總表');
   const hrData = hrSheet.getDataRange().getValues();
 
   const systemSS = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
   let empSheet = systemSS.getSheetByName('員工資料');
   if (!empSheet) empSheet = systemSS.insertSheet('員工資料');
 
-  // HR Sheet 欄位對應（0-indexed）
-  // AC欄 = 第29欄(index 28) = 到職日
-  // AE欄 = 第31欄(index 30) = 離職日
-  // AK欄 = 第37欄(index 36) = 算入考核
-  const COL_NAME = 1;     // B欄 = 姓名（根據實際HR Sheet調整）
-  const COL_DEPT = 3;     // D欄 = 部門
-  const COL_SECTION = 4;  // E欄 = 科別
+  // HR Sheet「(人工打)總表」欄位對應（0-indexed）
+  const COL_NAME = 4;     // E欄 = 姓名
+  const COL_DEPT = 10;    // K欄 = 部門
+  const COL_SECTION = 11; // L欄 = 科別
   const COL_JOIN = 28;    // AC欄 = 到職日
   const COL_LEAVE = 30;   // AE欄 = 離職日
-  const COL_INCLUDE = 36; // AK欄 = 算入考核
+  const COL_INCLUDE = 36; // AK欄 = 是否算考核
 
   const employees = [];
   for (let i = 1; i < hrData.length; i++) {
