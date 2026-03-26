@@ -10,12 +10,55 @@
 
 <div class="header">
   <h1>🔗 帳號綁定</h1>
-  <div class="subtitle">首次登入請完成綁定</div>
+  <div class="subtitle">請填寫以下資料完成綁定</div>
 </div>
 
-<div class="info-bar" style="margin-top:16px;text-align:center">
-  <div id="bindStatus">
-    <div class="loading"><div class="spinner"></div>驗證身份中...</div>
+<div id="formView">
+  <div class="score-section" style="margin:12px 8px">
+    <div class="section-title">填寫帳號資料</div>
+
+    <div class="setting-group">
+      <label class="setting-label">入會碼（向 HR 索取）</label>
+      <input type="text" class="setting-input" id="inviteCode"
+             placeholder="例：ABC123" maxlength="6"
+             style="text-transform:uppercase;letter-spacing:4px;font-size:18px;text-align:center">
+    </div>
+
+    <div class="setting-group">
+      <label class="setting-label">您的姓名</label>
+      <select class="setting-input" id="managerName">
+        <option value="">載入中...</option>
+      </select>
+    </div>
+
+    <div class="setting-group">
+      <label class="setting-label">身份</label>
+      <select class="setting-input" id="role">
+        <option value="主管">主管</option>
+        <option value="HR">HR</option>
+      </select>
+    </div>
+
+    <div style="background:#e3f2fd;border-radius:8px;padding:10px 12px;font-size:12px;color:#1565c0;margin-bottom:12px">
+      ℹ️ 入會碼請向 HR 索取，每組碼只能使用一次。
+    </div>
+
+    <button class="btn btn-submit" style="width:100%;padding:14px" onclick="doRegister()">
+      確認綁定
+    </button>
+  </div>
+</div>
+
+<div id="successView" style="display:none">
+  <div style="padding:40px 20px;text-align:center">
+    <div style="font-size:56px;margin-bottom:16px">✅</div>
+    <div style="font-size:18px;font-weight:bold;margin-bottom:8px">綁定成功！</div>
+    <div style="font-size:13px;color:#888;margin-bottom:24px">
+      您的帳號已完成綁定，即可開始使用考核系統。
+    </div>
+    <button class="btn btn-submit" style="width:80%;padding:14px" onclick="goToDashboard()">
+      進入考核系統
+    </button>
   </div>
 </div>
 
@@ -23,6 +66,8 @@
 
 <script>
 const liffId = '<?= liffId ?>';
+let lineUid = '';
+let displayName = '';
 
 async function init() {
   const s = document.createElement('script');
@@ -37,49 +82,49 @@ async function init() {
       }
 
       const profile = await liff.getProfile();
-      const uid = profile.userId;
-      const displayName = profile.displayName;
+      lineUid = profile.userId;
+      displayName = profile.displayName;
 
-      // 嘗試綁定
-      const result = await callGAS('apiBindAccount', [uid, displayName]);
+      // 載入主管姓名清單
+      const names = await callGAS('apiGetManagerNames', []);
+      const select = document.getElementById('managerName');
+      select.innerHTML = '<option value="">請選擇您的姓名</option>' +
+        names.map(n => `<option value="${n}">${n}</option>`).join('');
 
-      if (result.alreadyBound) {
-        // 已綁定但可能狀態是待確認
-        const managerInfo = await callGAS('apiGetManagerInfo', [uid]);
-        if (managerInfo) {
-          // 已授權，導到 dashboard
-          location.href = `?page=dashboard&uid=${encodeURIComponent(uid)}`;
-        } else {
-          showPending(displayName);
-        }
-      } else {
-        showPending(displayName);
-      }
     } catch (err) {
-      showError(err.message);
+      showToast('載入失敗：' + err.message);
     }
   };
   document.head.appendChild(s);
 }
 
-function showPending(name) {
-  document.getElementById('bindStatus').innerHTML = `
-    <div style="padding:20px;text-align:center">
-      <div style="font-size:40px;margin-bottom:12px">⏳</div>
-      <div style="font-size:16px;font-weight:bold;margin-bottom:8px">帳號已記錄</div>
-      <div style="font-size:13px;color:#888;margin-bottom:16px">
-        您的 LINE 帳號（${name}）已送出綁定申請。<br>
-        請等待 HR 確認身份後即可使用系統。
-      </div>
-      <div style="font-size:12px;color:#aaa">
-        確認後您將收到 LINE 通知，屆時重新開啟即可。
-      </div>
-    </div>`;
+async function doRegister() {
+  const code = document.getElementById('inviteCode').value.trim().toUpperCase();
+  const name = document.getElementById('managerName').value;
+  const role = document.getElementById('role').value;
+
+  if (!code) { showToast('請填入入會碼'); return; }
+  if (!name) { showToast('請選擇您的姓名'); return; }
+
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '驗證中...';
+
+  const result = await callGAS('apiRegisterWithCode', [lineUid, displayName, name, role, code]);
+
+  btn.disabled = false;
+  btn.textContent = '確認綁定';
+
+  if (result.error) {
+    showToast('❌ ' + result.error);
+  } else {
+    document.getElementById('formView').style.display = 'none';
+    document.getElementById('successView').style.display = 'block';
+  }
 }
 
-function showError(msg) {
-  document.getElementById('bindStatus').innerHTML = `
-    <div style="padding:20px;text-align:center;color:#f44336">${msg}</div>`;
+function goToDashboard() {
+  location.href = `?page=dashboard&uid=${encodeURIComponent(lineUid)}`;
 }
 
 function callGAS(fn, args) {
@@ -87,6 +132,13 @@ function callGAS(fn, args) {
     let runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
     runner[fn](...(args || []));
   });
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
 }
 
 init();

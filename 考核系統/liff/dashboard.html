@@ -79,42 +79,13 @@ async function init() {
 
     const profile = await liff.getProfile();
     lineUid = profile.userId;
-    const displayName = profile.displayName;
 
     document.getElementById('headerSubtitle').textContent = '驗證中...';
-
-    // 先記錄 UID（無論有沒有授權都先寫入 Sheet）
-    await callGAS('apiBindAccount', [lineUid, displayName]);
-
-    // 再確認是否已授權
-    const managerInfo = await callGAS('apiGetManagerInfo', [lineUid]);
-
-    if (!managerInfo) {
-      // 尚未授權：顯示等待畫面
-      showPendingScreen(displayName);
-      return;
-    }
-
-    // 已授權：載入儀表板
     await loadDashboard(lineUid);
 
   } catch (err) {
     showError('載入失敗：' + err.message);
   }
-}
-
-function showPendingScreen(name) {
-  document.getElementById('headerSubtitle').textContent = '帳號綁定';
-  document.getElementById('employeeList').innerHTML = `
-    <div style="padding:30px 20px;text-align:center">
-      <div style="font-size:48px;margin-bottom:12px">⏳</div>
-      <div style="font-size:16px;font-weight:bold;margin-bottom:8px">帳號已記錄</div>
-      <div style="font-size:13px;color:#888;line-height:1.6">
-        您的帳號（${name}）已送出綁定申請。<br>
-        請等待 HR 在 Google Sheets 授權後，<br>
-        重新開啟此頁面即可使用。
-      </div>
-    </div>`;
 }
 
 async function loadDashboard(uid) {

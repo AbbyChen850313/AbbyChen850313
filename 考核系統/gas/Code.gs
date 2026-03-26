@@ -82,9 +82,7 @@ function getCurrentQuarter() {
  */
 
 // --- Auth ---
-function apiBindAccount(lineUid, displayName) {
-  return bindLineAccount(lineUid, displayName);
-}
+// apiRegisterWithCode, apiGetManagerNames, apiGenerateCodes 直接定義在 Auth.gs
 function apiGetManagerInfo(lineUid) {
   return getManagerInfo(lineUid);
 }

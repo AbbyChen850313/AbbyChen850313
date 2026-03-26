@@ -62,11 +62,33 @@
 <!-- Tab: 帳號管理 -->
 <div class="tab-content" id="tab-accounts">
   <div style="padding:8px">
-    <div style="background:#e3f2fd;border-radius:8px;padding:12px;margin-bottom:8px;font-size:12px">
-      📌 主管在手機點選 LIFF 連結後，系統會自動記錄其 LINE 帳號。請在此確認並授權。
+
+    <!-- 生成入會碼 -->
+    <div class="score-section" style="margin-bottom:8px">
+      <div class="section-title">生成入會碼</div>
+      <div style="font-size:12px;color:#888;margin-bottom:10px">
+        每組入會碼只能使用一次。生成後傳給主管，主管用碼自行完成綁定。
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px">
+        <select class="setting-input" id="codeCount" style="flex:0 0 80px">
+          <option value="1">1組</option>
+          <option value="3">3組</option>
+          <option value="5">5組</option>
+          <option value="10">10組</option>
+        </select>
+        <button class="btn btn-primary" style="flex:1;padding:10px" onclick="generateCodes()">
+          生成入會碼
+        </button>
+      </div>
+      <div id="generatedCodes"></div>
     </div>
-    <div id="accountList">
-      <div class="loading"><div class="spinner"></div>載入中...</div>
+
+    <!-- 已綁定帳號 -->
+    <div class="score-section">
+      <div class="section-title">已綁定帳號</div>
+      <div id="accountList">
+        <div class="loading"><div class="spinner"></div>載入中...</div>
+      </div>
     </div>
   </div>
 </div>
@@ -186,13 +208,32 @@ async function triggerReminder() {
 }
 
 // === 帳號管理 ===
+async function generateCodes() {
+  const count = parseInt(document.getElementById('codeCount').value);
+  const result = await callGAS('apiGenerateCodes', [lineUid, count]);
+  if (result.error) {
+    showToast('❌ ' + result.error);
+    return;
+  }
+  const codesHtml = result.codes.map(c =>
+    `<div style="background:#f5f5f5;border-radius:6px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
+      <span style="font-size:20px;font-weight:bold;letter-spacing:4px;color:#1565c0">${c}</span>
+      <button onclick="copyCode('${c}')" style="border:none;background:none;color:#06c755;font-size:13px;cursor:pointer">複製</button>
+    </div>`
+  ).join('');
+  document.getElementById('generatedCodes').innerHTML =
+    `<div style="margin-top:4px">${codesHtml}</div>`;
+  showToast(`✅ 已生成 ${count} 組入會碼`);
+}
+
+function copyCode(code) {
+  navigator.clipboard.writeText(code).then(() => showToast(`已複製：${code}`));
+}
+
 async function loadAccounts() {
-  // 直接讀取 LINE帳號 工作表（需新增 GAS 函式）
-  showToast('帳號授權請至 Google Sheets 手動操作');
   document.getElementById('accountList').innerHTML = `
     <div style="padding:12px;font-size:13px;color:#555">
-      請至 Google Sheets <strong>LINE帳號</strong> 工作表，<br>
-      將主管的「狀態」欄改為「已授權」，<br>
+      主管用入會碼綁定後，可在 Google Sheets <strong>LINE帳號</strong> 工作表查看已綁定清單。<br>
       並確認「主管姓名」欄填寫正確。
     </div>`;
 }
