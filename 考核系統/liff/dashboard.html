@@ -70,13 +70,11 @@ let config = {};
 
 async function init() {
   try {
-    // 取得 GAS 設定
-    config = await callGAS('getConfig', []);
-
-    // 初始化 LIFF
-    await liff.init({ liffId: liffId || config.liffId });
+    // 先初始化 LIFF（用 template 注入的 liffId，不依賴 GAS）
+    await liff.init({ liffId: liffId });
 
     if (!liff.isLoggedIn()) {
+      // 強制重新登入，清除舊的快取狀態
       liff.login({ redirectUri: location.href });
       return;
     }
@@ -84,7 +82,9 @@ async function init() {
     const profile = await liff.getProfile();
     lineUid = profile.userId;
 
-    // 取得主管資訊 & 員工清單
+    document.getElementById('headerSubtitle').textContent = '載入中...';
+
+    // LIFF 完成後才呼叫 GAS
     await loadDashboard(lineUid);
 
   } catch (err) {

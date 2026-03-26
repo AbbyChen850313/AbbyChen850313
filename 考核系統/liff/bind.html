@@ -29,8 +29,7 @@ async function init() {
   s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
   s.onload = async () => {
     try {
-      const config = await callGAS('getConfig', []);
-      await liff.init({ liffId: liffId || config.liffId });
+      await liff.init({ liffId: liffId });
 
       if (!liff.isLoggedIn()) {
         liff.login({ redirectUri: location.href });
