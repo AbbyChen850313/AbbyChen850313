@@ -444,6 +444,20 @@ function _handleLineWebhook(events) {
       if (richMenuId) { _linkRichMenuToUser(uid, richMenuId); _lineReply(replyToken, '已重置為雜人選單 (A)'); }
       else { _lineReply(replyToken, '尚未設定 Rich Menu，請先執行 setupRichMenus()'); }
 
+    } else if (text === '初始化') {
+      // 初始化只需要有綁定帳號即可（第一次設定時 I 欄還是空的）
+      const adminInfo = getManagerInfo(uid);
+      if (!adminInfo) {
+        _lineReply(replyToken, '❌ 請先完成帳號綁定');
+      } else {
+        try {
+          setupRoleDropdown();
+          _lineReply(replyToken, '✅ LINE帳號 I欄（角色）下拉選單已建立\n請去 Sheet 把你的帳號 I 欄設為「系統管理員」，完成後傳「ping」確認');
+        } catch (err) {
+          _lineReply(replyToken, '❌ 初始化失敗：' + err.message);
+        }
+      }
+
     } else if (text === '啟用測試' || text === '啟用正式') {
       const adminInfo = getManagerInfo(uid);
       if (!adminInfo || !adminInfo.isSysAdmin) {
