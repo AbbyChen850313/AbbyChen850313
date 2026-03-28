@@ -83,8 +83,10 @@
 const LIFF_ID = '2009611318-5UphK9JK';
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
 
+const LS_UID = 'liff_uid';
 let lineUid = '';
 let displayName = '';
+let liffReady = false;
 
 function showForm() {
   document.getElementById('loadingView').style.display = 'none';
@@ -98,6 +100,24 @@ function showError(msg) {
 }
 
 async function init() {
+  // 有快取 UID → 直接查綁定狀態，不等 LIFF
+  const cachedUid = localStorage.getItem(LS_UID);
+  if (cachedUid) {
+    document.getElementById('loadingStep').textContent = '查詢帳號狀態...';
+    try {
+      const check = await Promise.race([
+        callGAS('apiCheckBinding', [cachedUid]),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
+      ]);
+      if (check && check.bound) {
+        lineUid = cachedUid;
+        goToDashboard();
+        return;
+      }
+    } catch (_) { /* 查詢失敗就繼續走 LIFF */ }
+  }
+
+  // 沒快取或未綁定 → 走 LIFF 流程（背景也更新 UID）
   try {
     document.getElementById('loadingStep').textContent = 'LIFF 初始化...';
     await Promise.race([
@@ -110,31 +130,36 @@ async function init() {
       return;
     }
 
-    document.getElementById('loadingStep').textContent = '取得身分資料...';
     const profile = await liff.getProfile();
     lineUid = profile.userId;
     displayName = profile.displayName;
+    liffReady = true;
 
+    // 若快取 UID 與 LIFF 不同，更新快取
+    if (lineUid !== cachedUid) localStorage.setItem(LS_UID, lineUid);
+
+    // LIFF 取得後再查一次（防止快取 UID 過期）
     document.getElementById('loadingStep').textContent = '查詢帳號狀態...';
-    let check;
-    try {
-      check = await Promise.race([
-        callGAS('apiCheckBinding', [lineUid]),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000)),
-      ]);
-    } catch (e) {
-      showForm();
+    const check = await Promise.race([
+      callGAS('apiCheckBinding', [lineUid]),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
+    ]).catch(() => null);
+
+    if (check && check.bound) {
+      goToDashboard();
       return;
     }
 
-    if (check.bound) {
-      goToDashboard(); // 已綁定直接跳轉
-      return;
-    }
     document.getElementById('loadingView').style.display = 'none';
     document.getElementById('formView').style.display = 'block';
   } catch (err) {
-    showError(err.message);
+    // LIFF 失敗但有快取 UID → 直接顯示表單（送出時再處理）
+    if (cachedUid) {
+      lineUid = cachedUid;
+      showForm();
+    } else {
+      showError(err.message);
+    }
   }
 }
 
@@ -146,7 +171,7 @@ async function doBindByIdentity() {
   if (!name) { showToast('請填入姓名'); return; }
   if (!employeeId) { showToast('請填入員工編號'); return; }
   if (!phone) { showToast('請填入手機號碼'); return; }
-  if (!lineUid) { showToast('LINE 身分未取得，請重新整理'); return; }
+  if (!lineUid) { showToast('LINE 身分未取得，請稍後再試'); return; }
 
   const btn = event.target;
   btn.disabled = true;
