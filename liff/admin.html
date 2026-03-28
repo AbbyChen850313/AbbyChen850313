@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HR 管理後台</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .tab-bar { display: flex; background: white; border-bottom: 1px solid #eee; padding: 0 8px; }
+    .tab-btn { flex: 1; padding: 12px 2px; border: none; background: none; font-size: 12px; color: #888; border-bottom: 2px solid transparent; cursor: pointer; }
+    .tab-btn.active { color: #06c755; border-bottom-color: #06c755; font-weight: bold; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    /* 主管視角全屏 */
+    .mgr-view { display:none;position:fixed;inset:0;background:#f5f5f5;z-index:200;overflow-y:auto }
+    .mgr-view.open { display:block }
+    .mgr-view-header { background:linear-gradient(135deg,#06c755,#04a344);color:white;padding:16px;display:flex;align-items:center;gap:12px }
+    .mgr-back-btn { background:none;border:none;color:white;font-size:22px;line-height:1;cursor:pointer;padding:0 4px }
+    .mgr-view-name { font-size:16px;font-weight:bold;margin:0 }
+    .mgr-view-sub { font-size:12px;opacity:.85;margin-top:2px }
+  </style>
+</head>
+<body>
+
+<div class="header" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+  <div>
+    <h1>⚙️ HR 管理後台</h1>
+    <div class="subtitle">HR 管理後台</div>
+  </div>
+  <select id="mgrSelect" onchange="onMgrSelectChange(this)"
+    style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.5);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;max-width:110px">
+    <option value="">👥 主管視角</option>
+  </select>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('progress')">評分進度</button>
+  <button class="tab-btn" onclick="switchTab('accounts')">帳號管理</button>
+  <button class="tab-btn" onclick="switchTab('settings')">系統設定</button>
+  <button class="tab-btn" onclick="switchTab('export')">匯出</button>
+  <button class="tab-btn" onclick="switchTab('logs')">日誌</button>
+</div>
+
+<div class="tab-content active" id="tab-progress">
+  <div style="padding:8px">
+    <div style="margin-bottom:8px;display:flex;gap:8px">
+      <button class="btn btn-secondary" style="flex:1;padding:10px" onclick="triggerReminder()">📢 發送提醒通知</button>
+      <button class="btn btn-primary" style="flex:1;padding:10px" onclick="loadProgress()">🔄 重新整理</button>
+    </div>
+    <div id="progressTable"><div class="loading"><div class="spinner"></div>載入中...</div></div>
+  </div>
+</div>
+
+<div class="tab-content" id="tab-accounts">
+  <div style="padding:8px">
+    <div style="margin-bottom:8px">
+      <button class="btn btn-primary" style="width:100%;padding:10px" onclick="loadAccounts()">🔄 重新整理</button>
+    </div>
+    <div id="accountList"><div class="loading"><div class="spinner"></div>載入中...</div></div>
+  </div>
+</div>
+
+<div class="tab-content" id="tab-settings">
+  <div class="score-section" style="margin:8px">
+    <div class="section-title">評分期間設定</div>
+    <div class="setting-group">
+      <label class="setting-label">評分期間描述（顯示用）</label>
+      <input type="text" class="setting-input" id="set_period" placeholder="如：115/1~3月">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">評分開始日</label>
+      <input type="date" class="setting-input" id="set_start">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">評分截止日</label>
+      <input type="date" class="setting-input" id="set_end">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">通知時間點1</label>
+      <input type="date" class="setting-input" id="set_notify1">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">通知時間點2</label>
+      <input type="date" class="setting-input" id="set_notify2">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">當前季度（如：115Q1）</label>
+      <input type="text" class="setting-input" id="set_quarter" placeholder="115Q1">
+    </div>
+    <div class="btn-group" style="padding:0;margin-top:12px">
+      <button class="btn btn-primary" onclick="saveSettings()">儲存設定</button>
+    </div>
+  </div>
+
+  <div class="score-section" style="margin:8px">
+    <div class="section-title">資料同步</div>
+    <button class="btn btn-secondary" style="width:100%;padding:12px" onclick="syncEmployees()">
+      🔄 從 HR Sheet 同步員工名單
+    </button>
+  </div>
+</div>
+
+<div class="tab-content" id="tab-export">
+  <div class="score-section" style="margin:8px">
+    <div class="section-title">匯出考核結果</div>
+    <div class="setting-group">
+      <label class="setting-label">選擇季度</label>
+      <input type="text" class="setting-input" id="exportQuarter" placeholder="如：115Q1">
+    </div>
+    <button class="btn btn-primary" style="width:100%;padding:12px;margin-top:8px" onclick="doExport()">
+      📥 匯出 Excel（Google Sheets）
+    </button>
+    <div id="exportResult" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<div class="tab-content" id="tab-logs">
+  <div style="padding:8px">
+    <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center">
+      <button class="btn btn-primary" style="flex:1;padding:10px" onclick="loadLogs()">🔄 重新整理</button>
+      <select id="logFilter" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:13px" onchange="renderLogs()">
+        <option value="all">全部</option>
+        <option value="ERROR">ERROR</option>
+        <option value="WARN">WARN</option>
+        <option value="INFO">INFO</option>
+      </select>
+    </div>
+    <div id="logList"><div class="loading"><div class="spinner"></div>載入中...</div></div>
+  </div>
+</div>
+
+<!-- 主管視角全屏 -->
+<div class="mgr-view" id="mgrView">
+  <div class="mgr-view-header">
+    <button class="mgr-back-btn" onclick="closeMgrView()">←</button>
+    <div style="flex:1;min-width:0">
+      <div class="mgr-view-name" id="mgrViewName">主管視角</div>
+      <div class="mgr-view-sub" id="mgrViewSub"></div>
+    </div>
+    <select id="mgrViewSelect" onchange="onMgrViewSelectChange(this)"
+      style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.5);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;max-width:110px;flex-shrink:0">
+    </select>
+  </div>
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="filterMgrView('all',this)">全部</button>
+    <button class="filter-btn" onclick="filterMgrView('pending',this)">未評分</button>
+    <button class="filter-btn" onclick="filterMgrView('draft',this)">草稿</button>
+    <button class="filter-btn" onclick="filterMgrView('done',this)">已送出</button>
+    <button class="filter-btn" onclick="filterMgrView('probation',this)">試用期</button>
+  </div>
+  <div class="employee-list" id="mgrViewList"><div class="loading"><div class="spinner"></div>載入中...</div></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const LIFF_ID = '2009611318-5UphK9JK';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
+
+const params = new URLSearchParams(location.search);
+let lineUid = decodeURIComponent(params.get('uid') || '') || localStorage.getItem('liff_uid') || '';
+
+function switchTab(tab) {
+  const tabs = ['progress', 'accounts', 'settings', 'export', 'logs'];
+  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', tabs[i] === tab);
+  });
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'progress') loadProgress();
+  if (tab === 'accounts') loadAccounts();
+  if (tab === 'settings' || tab === 'export') loadSettings();
+  if (tab === 'logs') loadLogs();
+}
+
+let _allManagers = [];
+
+function _populateMgrDropdowns(managers) {
+  _allManagers = managers;
+  const opts = managers.map(s => `<option value="${s.lineUid}">${s.managerName}</option>`).join('');
+  document.getElementById('mgrSelect').innerHTML = '<option value="">👥 主管視角</option>' + opts;
+  document.getElementById('mgrViewSelect').innerHTML = opts;
+}
+
+function onMgrSelectChange(sel) {
+  if (!sel.value) return;
+  const name = sel.options[sel.selectedIndex].text;
+  openMgrView(sel.value, name);
+  sel.value = ''; // reset
+}
+
+function onMgrViewSelectChange(sel) {
+  if (!sel.value) return;
+  const name = sel.options[sel.selectedIndex].text;
+  openMgrView(sel.value, name);
+}
+
+async function loadProgress() {
+  const status = await callGAS('apiGetAllStatus', [lineUid]);
+  if (!status || status.error) {
+    document.getElementById('progressTable').innerHTML =
+      `<div class="loading" style="color:#f44336">${(status && status.error) || '無法載入'}</div>`;
+    return;
+  }
+  _populateMgrDropdowns(status);
+  document.getElementById('progressTable').innerHTML = status.map(s => {
+    const pct = s.total > 0 ? Math.round(s.scored / s.total * 100) : 0;
+    const color = pct === 100 ? '#2e7d32' : pct > 0 ? '#f57f17' : '#9e9e9e';
+    const barW = pct + '%';
+    return `<div onclick="openMgrView('${s.lineUid}','${s.managerName}')"
+               style="background:white;border-radius:8px;padding:12px 16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);cursor:pointer;active:opacity:.7">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-weight:bold;font-size:15px">${s.managerName}</span>
+        <span style="font-size:13px;font-weight:bold;color:${color}">${pct}%</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:#888;margin-bottom:6px">
+        <span>已評 ${s.scored} / 共 ${s.total} 人</span>
+        <span style="color:#06c755">點擊查看 ›</span>
+      </div>
+      <div style="height:4px;background:#f0f0f0;border-radius:2px">
+        <div style="height:100%;width:${barW};background:${color};border-radius:2px;transition:width .3s"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function triggerReminder() {
+  if (!confirm('確認發送提醒通知給所有未完成的主管？')) return;
+  const result = await callGAS('apiTriggerReminders', [lineUid]);
+  showToast(result.error ? '❌ ' + result.error : `✅ 已通知 ${result.notifiedCount} 位主管`);
+}
+
+async function loadSettings() {
+  const settings = await callGAS('apiGetSettings', []);
+  document.getElementById('set_period').value = settings['評分期間描述'] || '';
+  document.getElementById('set_start').value = toInputDate(settings['評分開始日']);
+  document.getElementById('set_end').value = toInputDate(settings['評分截止日']);
+  document.getElementById('set_notify1').value = toInputDate(settings['通知時間點1']);
+  document.getElementById('set_notify2').value = toInputDate(settings['通知時間點2']);
+  document.getElementById('set_quarter').value = settings['當前季度'] || '';
+  document.getElementById('exportQuarter').value = settings['當前季度'] || '';
+}
+
+function toInputDate(val) {
+  if (!val) return '';
+  const d = new Date(val);
+  return isNaN(d) ? '' : d.toISOString().split('T')[0];
+}
+
+async function saveSettings() {
+  const result = await callGAS('apiUpdateSettings', [lineUid, {
+    '評分期間描述': document.getElementById('set_period').value,
+    '評分開始日': document.getElementById('set_start').value,
+    '評分截止日': document.getElementById('set_end').value,
+    '通知時間點1': document.getElementById('set_notify1').value,
+    '通知時間點2': document.getElementById('set_notify2').value,
+    '當前季度': document.getElementById('set_quarter').value,
+  }]);
+  showToast(result.error ? '❌ ' + result.error : '✅ 設定已儲存');
+}
+
+async function syncEmployees() {
+  showToast('⏳ 同步中...');
+  const result = await callGAS('apiSyncEmployees', [lineUid]);
+  showToast(result.error ? '❌ ' + result.error : `✅ 已同步 ${result.count} 位員工`);
+}
+
+async function doExport() {
+  const quarter = document.getElementById('exportQuarter').value.trim();
+  if (!quarter) { showToast('請填寫季度'); return; }
+  document.getElementById('exportResult').innerHTML = '<div class="loading"><div class="spinner"></div>匯出中...</div>';
+  const result = await callGAS('apiExportExcel', [lineUid, quarter]);
+  document.getElementById('exportResult').innerHTML = result.error
+    ? `<div style="color:#f44336">${result.error}</div>`
+    : `<div style="color:#2e7d32;margin-bottom:8px">✅ ${result.message}</div>
+       <a href="${result.url}" target="_blank" style="color:#1565c0">📊 開啟匯出結果</a>`;
+}
+
+function callGAS(action, args) {
+  return fetch(GAS_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, args: args || [] }),
+  }).then(r => r.json());
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+async function loadAccounts() {
+  document.getElementById('accountList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
+  const accounts = await callGAS('apiGetAllAccounts', [lineUid]);
+  if (!accounts || accounts.error) {
+    document.getElementById('accountList').innerHTML =
+      `<div class="loading" style="color:#f44336">${(accounts && accounts.error) || '無法載入'}</div>`;
+    return;
+  }
+  if (accounts.length === 0) {
+    document.getElementById('accountList').innerHTML = '<div class="loading">尚無已綁定帳號</div>';
+    return;
+  }
+  document.getElementById('accountList').innerHTML = accounts.map(a => `
+    <div style="background:white;border-radius:8px;padding:12px 16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:bold;font-size:15px">${a.name}</div>
+          <div style="font-size:12px;color:#888;margin-top:2px">${a.role} ｜ ${a.phone || '未填電話'}</div>
+          <div style="font-size:11px;color:#bbb;margin-top:2px">綁定：${a.boundAt}</div>
+        </div>
+        <button class="btn btn-danger" style="flex:none;padding:8px 14px;font-size:13px"
+                onclick="resetAccount('${a.lineUid}', '${a.name}')">取消綁定</button>
+      </div>
+    </div>`).join('');
+}
+
+let _mgrAllEmps = [];
+let _mgrFilter = 'all';
+
+async function openMgrView(targetUid, managerName) {
+  _mgrFilter = 'all';
+  document.getElementById('mgrViewName').textContent = managerName;
+  document.getElementById('mgrViewSub').textContent = '載入中...';
+  document.getElementById('mgrViewList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
+  document.getElementById('mgrView').classList.add('open');
+  document.getElementById('mgrViewSelect').value = targetUid;
+  document.querySelectorAll('#mgrView .filter-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+
+  const data = await callGAS('apiGetManagerDashboard', [lineUid, targetUid]);
+  if (!data || data.error) {
+    document.getElementById('mgrViewList').innerHTML =
+      `<div class="loading" style="color:#f44336">${(data && data.error) || '無法載入'}</div>`;
+    return;
+  }
+  _mgrAllEmps = data.employees || [];
+  const pct = data.total > 0 ? Math.round(data.scored / data.total * 100) : 0;
+  document.getElementById('mgrViewSub').textContent = `已評 ${data.scored}/${data.total} 人（${pct}%）`;
+  renderMgrView();
+}
+
+function filterMgrView(type, btn) {
+  _mgrFilter = type;
+  document.querySelectorAll('#mgrView .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderMgrView();
+}
+
+function renderMgrView() {
+  let list = _mgrAllEmps;
+  if (_mgrFilter === 'pending') list = list.filter(e => e.scoreStatus !== '已送出' && e.scoreStatus !== '草稿');
+  else if (_mgrFilter === 'draft') list = list.filter(e => e.scoreStatus === '草稿');
+  else if (_mgrFilter === 'done') list = list.filter(e => e.scoreStatus === '已送出');
+  else if (_mgrFilter === 'probation') list = list.filter(e => e.isProbation);
+
+  if (list.length === 0) {
+    document.getElementById('mgrViewList').innerHTML = '<div class="loading">無符合條件的員工</div>';
+    return;
+  }
+  document.getElementById('mgrViewList').innerHTML = list.map(emp => {
+    const st = emp.scoreStatus || '未評分';
+    const badgeClass = st === '已送出' ? 'badge-done' : st === '草稿' ? 'badge-draft' : 'badge-pending';
+    const cardClass = emp.isProbation ? 'employee-card probation' : 'employee-card';
+    return `<div class="${cardClass}">
+      <div class="emp-avatar">${emp.name ? emp.name.charAt(0) : '?'}</div>
+      <div class="emp-info">
+        <div class="emp-name">${emp.name}${emp.isProbation ? '<span class="emp-badge badge-probation" style="font-size:10px;margin-left:4px">試用期</span>' : ''}</div>
+        <div class="emp-meta">${emp.section} · 年資 ${emp.tenure || '-'}</div>
+      </div>
+      <span class="emp-badge ${badgeClass}">${st}</span>
+    </div>`;
+  }).join('');
+}
+
+function closeMgrView() {
+  document.getElementById('mgrView').classList.remove('open');
+}
+
+let _logsCache = [];
+
+async function loadLogs() {
+  document.getElementById('logList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
+  const logs = await callGAS('apiGetLogs', [lineUid]);
+  if (!logs || logs.error) {
+    document.getElementById('logList').innerHTML =
+      `<div class="loading" style="color:#f44336">${(logs && logs.error) || '無法載入'}</div>`;
+    return;
+  }
+  _logsCache = logs;
+  renderLogs();
+}
+
+function renderLogs() {
+  const filter = document.getElementById('logFilter').value;
+  const logs = filter === 'all' ? _logsCache : _logsCache.filter(l => l.level === filter);
+  if (logs.length === 0) {
+    document.getElementById('logList').innerHTML = '<div class="loading">無日誌記錄</div>';
+    return;
+  }
+  const levelColor = { ERROR: '#f44336', WARN: '#f57f17', INFO: '#1565c0' };
+  document.getElementById('logList').innerHTML = logs.map(l => `
+    <div style="background:white;border-radius:6px;padding:10px 12px;margin-bottom:6px;box-shadow:0 1px 3px rgba(0,0,0,0.06);border-left:3px solid ${levelColor[l.level] || '#ccc'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:11px;font-weight:bold;color:${levelColor[l.level] || '#888'}">${l.level}</span>
+        <span style="font-size:11px;color:#aaa">${l.time}</span>
+      </div>
+      <div style="font-size:13px;color:#333">[${l.fn}] ${l.msg}</div>
+      ${l.detail ? `<div style="font-size:11px;color:#888;margin-top:4px;word-break:break-all">${l.detail}</div>` : ''}
+    </div>`).join('');
+}
+
+async function resetAccount(targetUid, name) {
+  if (!confirm(`確認取消 ${name} 的帳號綁定？\n取消後需重新綁定才能使用系統。`)) return;
+  const result = await callGAS('apiResetAccount', [lineUid, targetUid]);
+  if (result.error) {
+    showToast('❌ ' + result.error);
+  } else {
+    showToast(`✅ 已取消 ${name} 的綁定`);
+    loadAccounts();
+  }
+}
+
+loadProgress();
+</script>
+</body>
+</html>
