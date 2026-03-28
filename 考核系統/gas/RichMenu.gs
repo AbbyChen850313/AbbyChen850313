@@ -21,19 +21,20 @@ const RICH_MENU_IMAGES = {
 
 // ── 各按鈕連結────────────────────────────────────────────────
 // liffId 依目前環境動態取得（在 setupRichMenus() 呼叫時才決定，不是 load-time）
-// 其他 TODO URL 請填入實際網址
 function _getActionUrls() {
   const liffId = getActiveEnv().liffId;
   return {
     官網:         'https://www.liangchun.com.tw/article.php?lang=tw&tb=5',
     綁定帳號:     `https://liff.line.me/${liffId}`,
-    我要請款:     'https://TODO_請款URL',      // ← 請填入實際網址
-    查詢請款:     'https://TODO_查詢請款URL',  // ← 請填入實際網址
-    重要表單QA:   'https://TODO_表單URL',      // ← 請填入實際網址
-    公司活動報名: 'https://TODO_活動URL',      // ← 請填入實際網址
-    讚賞幣:       'https://TODO_讚賞幣URL',    // ← 請填入實際網址
-    出勤:         'https://TODO_出勤URL',      // ← 請填入實際網址
     考核系統:     `https://liff.line.me/${liffId}`,
+    // A、B：直接連結到 Ragic 表單
+    我要請款:     'https://ap10.ragic.com/liangchun/ragicadministration/20005?webview&webaction=form&ver=new&version=2',
+    查詢請款:     'https://ap10.ragic.com/liangchun/ragicadministration/20005?webview&webaction=query',
+    // C~F：發出關鍵字文字，觸發 LINE OA 自動回應的多頁選單
+    重要表單QA:   '重要表單',
+    公司活動報名: '我要報名',
+    讚賞幣:       '我要發出讚賞幣!!',
+    出勤:         '出勤相關',
   };
 }
 
@@ -236,12 +237,12 @@ function _sixCellAreas(startY) {
 
   const urls = _getActionUrls();
   const actions = [
-    { type: 'uri', uri: urls.我要請款 },
-    { type: 'uri', uri: urls.查詢請款 },
-    { type: 'uri', uri: urls.重要表單QA },
-    { type: 'uri', uri: urls.公司活動報名 },
-    { type: 'uri', uri: urls.讚賞幣 },
-    { type: 'uri', uri: urls.出勤 },
+    { type: 'uri',     uri:  urls.我要請款 },
+    { type: 'uri',     uri:  urls.查詢請款 },
+    { type: 'message', text: urls.重要表單QA },    // 發關鍵字 → 自動回應多頁選單
+    { type: 'message', text: urls.公司活動報名 },
+    { type: 'message', text: urls.讚賞幣 },
+    { type: 'message', text: urls.出勤 },
   ];
 
   const areas = [];
