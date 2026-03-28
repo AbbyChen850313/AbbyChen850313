@@ -4,24 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HR 管理後台</title>
-  <?!= include('_styles'); ?>
+  <link rel="stylesheet" href="styles.css">
   <style>
-    .tab-bar {
-      display: flex;
-      background: white;
-      border-bottom: 1px solid #eee;
-      padding: 0 8px;
-    }
-    .tab-btn {
-      flex: 1;
-      padding: 12px 4px;
-      border: none;
-      background: none;
-      font-size: 13px;
-      color: #888;
-      border-bottom: 2px solid transparent;
-      cursor: pointer;
-    }
+    .tab-bar { display: flex; background: white; border-bottom: 1px solid #eee; padding: 0 8px; }
+    .tab-btn { flex: 1; padding: 12px 4px; border: none; background: none; font-size: 13px; color: #888; border-bottom: 2px solid transparent; cursor: pointer; }
     .tab-btn.active { color: #06c755; border-bottom-color: #06c755; font-weight: bold; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
@@ -31,10 +17,9 @@
 
 <div class="header">
   <h1>⚙️ HR 管理後台</h1>
-  <div class="subtitle" id="adminSubtitle">載入中...</div>
+  <div class="subtitle">HR 管理後台</div>
 </div>
 
-<!-- Tab 導航 -->
 <div class="tab-bar">
   <button class="tab-btn active" onclick="switchTab('progress')">評分進度</button>
   <button class="tab-btn" onclick="switchTab('accounts')">帳號管理</button>
@@ -42,62 +27,32 @@
   <button class="tab-btn" onclick="switchTab('export')">匯出</button>
 </div>
 
-<!-- Tab: 評分進度 -->
 <div class="tab-content active" id="tab-progress">
   <div style="padding:8px">
     <div style="margin-bottom:8px;display:flex;gap:8px">
-      <button class="btn btn-secondary" style="flex:1;padding:10px" onclick="triggerReminder()">
-        📢 發送提醒通知
-      </button>
-      <button class="btn btn-primary" style="flex:1;padding:10px" onclick="refreshProgress()">
-        🔄 重新整理
-      </button>
+      <button class="btn btn-secondary" style="flex:1;padding:10px" onclick="triggerReminder()">📢 發送提醒通知</button>
+      <button class="btn btn-primary" style="flex:1;padding:10px" onclick="loadProgress()">🔄 重新整理</button>
     </div>
-    <div id="progressTable">
-      <div class="loading"><div class="spinner"></div>載入中...</div>
-    </div>
+    <div id="progressTable"><div class="loading"><div class="spinner"></div>載入中...</div></div>
   </div>
 </div>
 
-<!-- Tab: 帳號管理 -->
 <div class="tab-content" id="tab-accounts">
   <div style="padding:8px">
-
-    <!-- 生成入會碼 -->
-    <div class="score-section" style="margin-bottom:8px">
-      <div class="section-title">生成入會碼</div>
-      <div style="font-size:12px;color:#888;margin-bottom:10px">
-        每組入會碼只能使用一次。生成後傳給主管，主管用碼自行完成綁定。
-      </div>
-      <div style="display:flex;gap:8px;margin-bottom:10px">
-        <select class="setting-input" id="codeCount" style="flex:0 0 80px">
-          <option value="1">1組</option>
-          <option value="3">3組</option>
-          <option value="5">5組</option>
-          <option value="10">10組</option>
-        </select>
-        <button class="btn btn-primary" style="flex:1;padding:10px" onclick="generateCodes()">
-          生成入會碼
-        </button>
-      </div>
-      <div id="generatedCodes"></div>
-    </div>
-
-    <!-- 已綁定帳號 -->
     <div class="score-section">
       <div class="section-title">已綁定帳號</div>
-      <div id="accountList">
-        <div class="loading"><div class="spinner"></div>載入中...</div>
+      <div style="font-size:12px;color:#555;margin-bottom:10px">
+        員工輸入姓名與員工編號後自行完成綁定。<br>
+        已綁定清單可在 Google Sheets <strong>LINE帳號</strong> 工作表查看。<br>
+        如需刪除帳號，在工作表 G欄勾選後執行 <code>clearCheckedAccounts()</code>。
       </div>
     </div>
   </div>
 </div>
 
-<!-- Tab: 系統設定 -->
 <div class="tab-content" id="tab-settings">
   <div class="score-section" style="margin:8px">
     <div class="section-title">評分期間設定</div>
-
     <div class="setting-group">
       <label class="setting-label">評分期間描述（顯示用）</label>
       <input type="text" class="setting-input" id="set_period" placeholder="如：115/1~3月">
@@ -135,7 +90,6 @@
   </div>
 </div>
 
-<!-- Tab: 匯出 -->
 <div class="tab-content" id="tab-export">
   <div class="score-section" style="margin:8px">
     <div class="section-title">匯出考核結果</div>
@@ -143,20 +97,21 @@
       <label class="setting-label">選擇季度</label>
       <input type="text" class="setting-input" id="exportQuarter" placeholder="如：115Q1">
     </div>
-    <button class="btn btn-primary" style="width:100%;padding:12px;margin-top:8px"
-            onclick="doExport()">
+    <button class="btn btn-primary" style="width:100%;padding:12px;margin-top:8px" onclick="doExport()">
       📥 匯出 Excel（Google Sheets）
     </button>
     <div id="exportResult" style="margin-top:12px"></div>
   </div>
 </div>
 
-<!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script>
+const LIFF_ID = '2009611318-5UphK9JK';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
+
 const params = new URLSearchParams(location.search);
-const lineUid = decodeURIComponent(params.get('uid') || '<?= lineUid ?>');
+let lineUid = decodeURIComponent(params.get('uid') || '');
 
 function switchTab(tab) {
   document.querySelectorAll('.tab-btn').forEach((btn, i) => {
@@ -165,13 +120,10 @@ function switchTab(tab) {
   });
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
-
   if (tab === 'progress') loadProgress();
-  if (tab === 'accounts') loadAccounts();
-  if (tab === 'settings') loadSettings();
+  if (tab === 'settings' || tab === 'export') loadSettings();
 }
 
-// === 評分進度 ===
 async function loadProgress() {
   const status = await callGAS('apiGetAllStatus', [lineUid]);
   if (!status || status.error) {
@@ -179,8 +131,7 @@ async function loadProgress() {
       `<div class="loading" style="color:#f44336">${(status && status.error) || '無法載入'}</div>`;
     return;
   }
-
-  const html = `
+  document.getElementById('progressTable').innerHTML = `
     <table class="admin-table">
       <thead><tr><th>主管</th><th>已評</th><th>總計</th><th>進度</th></tr></thead>
       <tbody>
@@ -188,18 +139,13 @@ async function loadProgress() {
           const pct = s.total > 0 ? Math.round(s.scored / s.total * 100) : 0;
           const color = pct === 100 ? '#2e7d32' : pct > 0 ? '#f57f17' : '#9e9e9e';
           return `<tr>
-            <td>${s.managerName}</td>
-            <td>${s.scored}</td>
-            <td>${s.total}</td>
+            <td>${s.managerName}</td><td>${s.scored}</td><td>${s.total}</td>
             <td><span style="color:${color};font-weight:bold">${pct}%</span></td>
           </tr>`;
         }).join('')}
       </tbody>
     </table>`;
-  document.getElementById('progressTable').innerHTML = html;
 }
-
-function refreshProgress() { loadProgress(); }
 
 async function triggerReminder() {
   if (!confirm('確認發送提醒通知給所有未完成的主管？')) return;
@@ -207,40 +153,8 @@ async function triggerReminder() {
   showToast(result.error ? '❌ ' + result.error : `✅ 已通知 ${result.notifiedCount} 位主管`);
 }
 
-// === 帳號管理 ===
-async function generateCodes() {
-  const count = parseInt(document.getElementById('codeCount').value);
-  const result = await callGAS('apiGenerateCodes', [lineUid, count]);
-  if (result.error) {
-    showToast('❌ ' + result.error);
-    return;
-  }
-  const codesHtml = result.codes.map(c =>
-    `<div style="background:#f5f5f5;border-radius:6px;padding:10px 14px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center">
-      <span style="font-size:20px;font-weight:bold;letter-spacing:4px;color:#1565c0">${c}</span>
-      <button onclick="copyCode('${c}')" style="border:none;background:none;color:#06c755;font-size:13px;cursor:pointer">複製</button>
-    </div>`
-  ).join('');
-  document.getElementById('generatedCodes').innerHTML =
-    `<div style="margin-top:4px">${codesHtml}</div>`;
-  showToast(`✅ 已生成 ${count} 組入會碼`);
-}
-
-function copyCode(code) {
-  navigator.clipboard.writeText(code).then(() => showToast(`已複製：${code}`));
-}
-
-async function loadAccounts() {
-  document.getElementById('accountList').innerHTML = `
-    <div style="padding:12px;font-size:13px;color:#555">
-      主管用入會碼綁定後，可在 Google Sheets <strong>LINE帳號</strong> 工作表查看已綁定清單。<br>
-      並確認「主管姓名」欄填寫正確。
-    </div>`;
-}
-
-// === 系統設定 ===
 async function loadSettings() {
-  const settings = await callGAS('getSettings', []);
+  const settings = await callGAS('apiGetSettings', []);
   document.getElementById('set_period').value = settings['評分期間描述'] || '';
   document.getElementById('set_start').value = toInputDate(settings['評分開始日']);
   document.getElementById('set_end').value = toInputDate(settings['評分截止日']);
@@ -253,55 +167,43 @@ async function loadSettings() {
 function toInputDate(val) {
   if (!val) return '';
   const d = new Date(val);
-  if (isNaN(d)) return '';
-  return d.toISOString().split('T')[0];
+  return isNaN(d) ? '' : d.toISOString().split('T')[0];
 }
 
 async function saveSettings() {
-  const newSettings = {
+  const result = await callGAS('apiUpdateSettings', [lineUid, {
     '評分期間描述': document.getElementById('set_period').value,
     '評分開始日': document.getElementById('set_start').value,
     '評分截止日': document.getElementById('set_end').value,
     '通知時間點1': document.getElementById('set_notify1').value,
     '通知時間點2': document.getElementById('set_notify2').value,
     '當前季度': document.getElementById('set_quarter').value,
-  };
-  const result = await callGAS('apiUpdateSettings', [lineUid, newSettings]);
+  }]);
   showToast(result.error ? '❌ ' + result.error : '✅ 設定已儲存');
 }
 
 async function syncEmployees() {
   showToast('⏳ 同步中...');
-  const result = await callGAS('apiSyncEmployees', []);
+  const result = await callGAS('apiSyncEmployees', [lineUid]);
   showToast(result.error ? '❌ ' + result.error : `✅ 已同步 ${result.count} 位員工`);
 }
 
-// === 匯出 ===
 async function doExport() {
   const quarter = document.getElementById('exportQuarter').value.trim();
   if (!quarter) { showToast('請填寫季度'); return; }
-
-  document.getElementById('exportResult').innerHTML =
-    '<div class="loading"><div class="spinner"></div>匯出中...</div>';
-
+  document.getElementById('exportResult').innerHTML = '<div class="loading"><div class="spinner"></div>匯出中...</div>';
   const result = await callGAS('apiExportExcel', [lineUid, quarter]);
-  if (result.error) {
-    document.getElementById('exportResult').innerHTML =
-      `<div style="color:#f44336">${result.error}</div>`;
-  } else {
-    document.getElementById('exportResult').innerHTML = `
-      <div style="color:#2e7d32;margin-bottom:8px">✅ ${result.message}</div>
-      <a href="${result.url}" target="_blank" style="color:#1565c0">
-        📊 開啟匯出結果
-      </a>`;
-  }
+  document.getElementById('exportResult').innerHTML = result.error
+    ? `<div style="color:#f44336">${result.error}</div>`
+    : `<div style="color:#2e7d32;margin-bottom:8px">✅ ${result.message}</div>
+       <a href="${result.url}" target="_blank" style="color:#1565c0">📊 開啟匯出結果</a>`;
 }
 
-function callGAS(fn, args) {
-  return new Promise((resolve, reject) => {
-    let runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
-    runner[fn](...(args || []));
-  });
+function callGAS(action, args) {
+  return fetch(GAS_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, args: args || [] }),
+  }).then(r => r.json());
 }
 
 function showToast(msg) {
@@ -311,10 +213,7 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-// 初始化
-document.getElementById('adminSubtitle').textContent = 'HR 管理後台';
 loadProgress();
-loadSettings();
 </script>
 </body>
 </html>

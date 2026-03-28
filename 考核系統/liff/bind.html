@@ -4,57 +4,72 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>帳號綁定</title>
-  <?!= include('_styles'); ?>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
 <div class="header">
-  <h1>🔗 帳號綁定</h1>
-  <div class="subtitle">請填寫以下資料完成綁定</div>
+  <h1>帳號綁定</h1>
+  <div class="subtitle" id="bindSubtitle">驗證您的身分</div>
 </div>
 
-<div id="formView">
+<!-- 載入中 -->
+<div id="loadingView" style="padding:40px 20px;text-align:center;color:#888">
+  <div class="spinner" style="margin:0 auto 12px"></div>
+  <div id="loadingStep">載入 SDK...</div>
+</div>
+
+<!-- 錯誤顯示 -->
+<div id="errorView" style="display:none;margin:12px 8px;padding:14px;background:#ffebee;border-radius:8px;color:#c62828;font-size:13px">
+  <strong>錯誤：</strong><span id="errorMsg"></span>
+</div>
+
+<!-- 輸入表單 -->
+<div id="formView" style="display:none">
   <div class="score-section" style="margin:12px 8px">
-    <div class="section-title">填寫帳號資料</div>
+    <div class="section-title">請輸入員工資料</div>
 
     <div class="setting-group">
-      <label class="setting-label">入會碼（向 HR 索取）</label>
-      <input type="text" class="setting-input" id="inviteCode"
-             placeholder="例：ABC123" maxlength="6"
-             style="text-transform:uppercase;letter-spacing:4px;font-size:18px;text-align:center">
+      <label class="setting-label">姓名</label>
+      <input type="text" class="setting-input" id="inputName" placeholder="請輸入您的姓名">
     </div>
 
     <div class="setting-group">
-      <label class="setting-label">您的姓名</label>
-      <select class="setting-input" id="managerName">
-        <option value="">載入中...</option>
-      </select>
+      <label class="setting-label">員工編號</label>
+      <input type="text" class="setting-input" id="inputEmployeeId" placeholder="請輸入員工編號">
     </div>
 
     <div class="setting-group">
-      <label class="setting-label">身份</label>
-      <select class="setting-input" id="role">
-        <option value="主管">主管</option>
-        <option value="HR">HR</option>
-      </select>
+      <label class="setting-label">手機號碼</label>
+      <input type="tel" class="setting-input" id="inputPhone" placeholder="例：0912345678">
     </div>
 
-    <div style="background:#e3f2fd;border-radius:8px;padding:10px 12px;font-size:12px;color:#1565c0;margin-bottom:12px">
-      ℹ️ 入會碼請向 HR 索取，每組碼只能使用一次。
-    </div>
-
-    <button class="btn btn-submit" style="width:100%;padding:14px" onclick="doRegister()">
+    <button class="btn btn-submit" style="width:100%;padding:14px;margin-top:4px" onclick="doBindByIdentity()">
       確認綁定
     </button>
   </div>
 </div>
 
-<div id="successView" style="display:none">
+<!-- 已綁定畫面 -->
+<div id="alreadyBoundView" style="display:none">
   <div style="padding:40px 20px;text-align:center">
     <div style="font-size:56px;margin-bottom:16px">✅</div>
+    <div style="font-size:18px;font-weight:bold;margin-bottom:8px">帳號已綁定</div>
+    <div style="font-size:14px;color:#555;margin-bottom:24px" id="alreadyBoundName"></div>
+    <button class="btn btn-submit" style="width:80%;padding:14px" onclick="goToDashboard()">
+      進入考核系統
+    </button>
+  </div>
+</div>
+
+<!-- 綁定成功畫面 -->
+<div id="successView" style="display:none">
+  <div style="padding:40px 20px;text-align:center">
+    <div style="font-size:56px;margin-bottom:16px">🎉</div>
     <div style="font-size:18px;font-weight:bold;margin-bottom:8px">綁定成功！</div>
+    <div style="font-size:14px;color:#555;margin-bottom:4px" id="successName"></div>
     <div style="font-size:13px;color:#888;margin-bottom:24px">
-      您的帳號已完成綁定，即可開始使用考核系統。
+      您的帳號已完成綁定，即可開始使用。
     </div>
     <button class="btn btn-submit" style="width:80%;padding:14px" onclick="goToDashboard()">
       進入考核系統
@@ -65,73 +80,104 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const liffId = '<?= liffId ?>';
+const LIFF_ID = '2009611318-5UphK9JK';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
+
 let lineUid = '';
 let displayName = '';
 
-async function init() {
-  const s = document.createElement('script');
-  s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
-  s.onload = async () => {
-    try {
-      await liff.init({ liffId: liffId });
-
-      if (!liff.isLoggedIn()) {
-        liff.login({ redirectUri: location.href });
-        return;
-      }
-
-      const profile = await liff.getProfile();
-      lineUid = profile.userId;
-      displayName = profile.displayName;
-
-      // 載入主管姓名清單
-      const names = await callGAS('apiGetManagerNames', []);
-      const select = document.getElementById('managerName');
-      select.innerHTML = '<option value="">請選擇您的姓名</option>' +
-        names.map(n => `<option value="${n}">${n}</option>`).join('');
-
-    } catch (err) {
-      showToast('載入失敗：' + err.message);
-    }
-  };
-  document.head.appendChild(s);
+function showForm() {
+  document.getElementById('loadingView').style.display = 'none';
+  document.getElementById('formView').style.display = 'block';
 }
 
-async function doRegister() {
-  const code = document.getElementById('inviteCode').value.trim().toUpperCase();
-  const name = document.getElementById('managerName').value;
-  const role = document.getElementById('role').value;
+function showError(msg) {
+  document.getElementById('loadingView').style.display = 'none';
+  document.getElementById('errorMsg').textContent = msg;
+  document.getElementById('errorView').style.display = 'block';
+}
 
-  if (!code) { showToast('請填入入會碼'); return; }
-  if (!name) { showToast('請選擇您的姓名'); return; }
+async function init() {
+  try {
+    document.getElementById('loadingStep').textContent = 'LIFF 初始化...';
+    await Promise.race([
+      liff.init({ liffId: LIFF_ID }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('LIFF init timeout')), 10000)),
+    ]);
+
+    if (!liff.isLoggedIn()) {
+      liff.login({ redirectUri: location.href });
+      return;
+    }
+
+    document.getElementById('loadingStep').textContent = '取得身分資料...';
+    const profile = await liff.getProfile();
+    lineUid = profile.userId;
+    displayName = profile.displayName;
+
+    document.getElementById('loadingStep').textContent = '查詢帳號狀態...';
+    let check;
+    try {
+      check = await Promise.race([
+        callGAS('apiCheckBinding', [lineUid]),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000)),
+      ]);
+    } catch (e) {
+      showForm();
+      return;
+    }
+
+    document.getElementById('loadingView').style.display = 'none';
+    if (check.bound) {
+      document.getElementById('alreadyBoundName').textContent =
+        `您好，${check.name}（${check.jobTitle}）`;
+      document.getElementById('alreadyBoundView').style.display = 'block';
+    } else {
+      document.getElementById('formView').style.display = 'block';
+    }
+  } catch (err) {
+    showError(err.message);
+  }
+}
+
+async function doBindByIdentity() {
+  const name = document.getElementById('inputName').value.trim();
+  const employeeId = document.getElementById('inputEmployeeId').value.trim();
+  const phone = document.getElementById('inputPhone').value.trim();
+
+  if (!name) { showToast('請填入姓名'); return; }
+  if (!employeeId) { showToast('請填入員工編號'); return; }
+  if (!phone) { showToast('請填入手機號碼'); return; }
+  if (!lineUid) { showToast('LINE 身分未取得，請重新整理'); return; }
 
   const btn = event.target;
   btn.disabled = true;
   btn.textContent = '驗證中...';
 
-  const result = await callGAS('apiRegisterWithCode', [lineUid, displayName, name, role, code]);
+  const result = await callGAS('apiBindByIdentity', [lineUid, displayName, name, employeeId, phone]);
 
   btn.disabled = false;
   btn.textContent = '確認綁定';
 
   if (result.error) {
     showToast('❌ ' + result.error);
-  } else {
-    document.getElementById('formView').style.display = 'none';
-    document.getElementById('successView').style.display = 'block';
+    return;
   }
+
+  document.getElementById('successName').textContent = `您好，${result.name}！`;
+  document.getElementById('formView').style.display = 'none';
+  document.getElementById('successView').style.display = 'block';
 }
 
 function goToDashboard() {
-  location.href = `?page=dashboard&uid=${encodeURIComponent(lineUid)}`;
+  location.href = 'dashboard.html';
 }
 
-function callGAS(fn, args) {
-  return new Promise((resolve, reject) => {
-    let runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
-    runner[fn](...(args || []));
-  });
+function callGAS(action, args) {
+  return fetch(GAS_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, args: args || [] }),
+  }).then(r => r.json());
 }
 
 function showToast(msg) {
@@ -141,7 +187,11 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-init();
+const s = document.createElement('script');
+s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
+s.onerror = () => showError('LINE SDK 載入失敗，請重新整理');
+s.onload = init;
+document.head.appendChild(s);
 </script>
 </body>
 </html>

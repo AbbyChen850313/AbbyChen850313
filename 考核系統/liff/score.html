@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>評分</title>
-  <?!= include('_styles'); ?>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
@@ -13,7 +13,6 @@
   <div class="subtitle" id="empTitle">載入中...</div>
 </div>
 
-<!-- 員工資訊 -->
 <div class="info-bar" id="empInfoBar">
   <div class="info-row">
     <span class="info-label">姓名</span>
@@ -32,7 +31,6 @@
   </div>
 </div>
 
-<!-- 即時分數預覽 -->
 <div class="score-preview">
   <div>
     <div class="preview-label">目前平均分</div>
@@ -44,16 +42,12 @@
   </div>
 </div>
 
-<!-- 評分表單 -->
 <form id="scoreForm">
-
-  <!-- 六個評分項目 -->
   <div class="score-section">
     <div class="section-title">工作績效評分</div>
     <div id="scoreItems"></div>
   </div>
 
-  <!-- 特殊加減分 -->
   <div class="score-section">
     <div class="section-title">特殊加減分</div>
     <input type="number" class="special-input" id="specialAdj"
@@ -65,30 +59,27 @@
     </div>
   </div>
 
-  <!-- 備註 -->
   <div class="score-section">
     <div class="section-title">備註（選填）</div>
-    <textarea class="note-textarea" id="noteText"
-              placeholder="可填寫具體表現說明..."></textarea>
+    <textarea class="note-textarea" id="noteText" placeholder="可填寫具體表現說明..."></textarea>
   </div>
-
 </form>
 
-<!-- 按鈕 -->
 <div class="btn-group">
   <button class="btn btn-draft" onclick="saveDraft()">儲存草稿</button>
   <button class="btn btn-submit" id="submitBtn" onclick="submitScore()">確認送出</button>
 </div>
 
-<!-- 送出後修改提示 -->
 <div style="text-align:center;font-size:11px;color:#aaa;padding-bottom:20px">
   截止日前可隨時返回修改
 </div>
 
-<!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script>
+const LIFF_ID = '2009611318-5UphK9JK';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
+
 const SCORE_ITEMS = [
   { key: 'item1', label: '【職能專業度】', desc: '根據公司任用職務項目，能充分自主完成工作' },
   { key: 'item2', label: '【工作效率】', desc: '工作效率高，如期達成工作目標' },
@@ -104,31 +95,34 @@ const GRADES = [
   { label: '丁', score: 35, desc: '0-59分' },
 ];
 
-// 從 URL 取得參數
 const params = new URLSearchParams(location.search);
-const lineUid = decodeURIComponent(params.get('uid') || '<?= lineUid ?>');
+let lineUid = decodeURIComponent(params.get('uid') || '');
 const employeeName = decodeURIComponent(params.get('eid') || '');
 const section = decodeURIComponent(params.get('section') || '');
 
 let weight = 1;
 let currentScores = {};
 
-function init() {
-  // 填入員工資訊
+async function init() {
   document.getElementById('empName').textContent = employeeName;
   document.getElementById('empSection').textContent = section;
   document.getElementById('empTitle').textContent = employeeName;
-
-  // 渲染評分項目
   renderScoreItems();
 
-  // 載入既有評分（草稿或已送出）
+  // uid 可能已在 URL 中，但仍透過 LIFF 重新驗證確保安全
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (liff.isLoggedIn()) {
+      const profile = await liff.getProfile();
+      lineUid = profile.userId;
+    }
+  } catch (_) { /* LIFF 初始化失敗不影響頁面顯示，後端會再驗證 */ }
+
   loadExistingScores();
 }
 
 function renderScoreItems() {
-  const container = document.getElementById('scoreItems');
-  container.innerHTML = SCORE_ITEMS.map(item => `
+  document.getElementById('scoreItems').innerHTML = SCORE_ITEMS.map(item => `
     <div class="score-item">
       <div class="score-item-label">${item.label}</div>
       <div style="font-size:11px;color:#aaa;margin-bottom:6px">${item.desc}</div>
@@ -146,15 +140,12 @@ function renderScoreItems() {
 }
 
 function selectGrade(itemKey, grade) {
-  // 清除同一項目的選取
   GRADES.forEach(g => {
     const btn = document.getElementById(`btn_${itemKey}_${g.label}`);
     if (btn) btn.className = 'grade-btn';
   });
-  // 選取新等級
   const btn = document.getElementById(`btn_${itemKey}_${grade}`);
   if (btn) btn.className = `grade-btn selected-${grade}`;
-
   currentScores[itemKey] = grade;
   updatePreview();
 }
@@ -166,49 +157,32 @@ function updatePreview() {
     document.getElementById('previewWeighted').textContent = '--';
     return;
   }
-
   const gradeMap = { '甲': 95, '乙': 85, '丙': 65, '丁': 35 };
   const avg = scores.reduce((s, g) => s + gradeMap[g], 0) / scores.length;
   const special = parseFloat(document.getElementById('specialAdj').value) || 0;
   const final = avg + special;
-  const weighted = final * weight;
-
   document.getElementById('previewScore').textContent = final.toFixed(1);
-  document.getElementById('previewWeighted').textContent = `${weighted.toFixed(1)} 分`;
+  document.getElementById('previewWeighted').textContent = `${(final * weight).toFixed(1)} 分`;
 }
 
 function loadExistingScores() {
   callGAS('apiGetMyScores', [lineUid, null]).then(allScores => {
     const existing = allScores[employeeName];
     if (!existing) return;
-
-    // 填入已有評分
-    Object.entries(existing.scores || {}).forEach(([key, val]) => {
-      if (val) selectGrade(key, val);
-    });
-    if (existing.special) {
-      document.getElementById('specialAdj').value = existing.special;
-    }
-    if (existing.note) {
-      document.getElementById('noteText').value = existing.note;
-    }
+    Object.entries(existing.scores || {}).forEach(([key, val]) => { if (val) selectGrade(key, val); });
+    if (existing.special) document.getElementById('specialAdj').value = existing.special;
+    if (existing.note) document.getElementById('noteText').value = existing.note;
     updatePreview();
-
-    if (existing.status === '已送出') {
-      document.getElementById('submitBtn').textContent = '修改送出';
-    }
+    if (existing.status === '已送出') document.getElementById('submitBtn').textContent = '修改送出';
   });
 
-  // 取得員工年資等資訊
   callGAS('apiGetScoreStatus', [lineUid]).then(status => {
     const emp = (status.employees || []).find(e => e.name === employeeName);
     if (emp) {
       document.getElementById('empTenure').textContent = emp.tenure || '-';
       weight = emp.weight || 1;
       document.getElementById('weightLabel').textContent = weight;
-      if (emp.isProbation) {
-        document.getElementById('probationAlert').style.display = 'block';
-      }
+      if (emp.isProbation) document.getElementById('probationAlert').style.display = 'block';
       updatePreview();
     }
   });
@@ -217,7 +191,7 @@ function loadExistingScores() {
 function getFormData() {
   return {
     lineUid,
-    quarter: null, // GAS 會自動取得當前季度
+    quarter: null,
     employeeName,
     section,
     scores: { ...currentScores },
@@ -227,37 +201,26 @@ function getFormData() {
 }
 
 function saveDraft() {
-  const data = getFormData();
   const btn = event.target;
   btn.disabled = true;
   btn.textContent = '儲存中...';
-
-  callGAS('apiSaveDraft', [data]).then(result => {
+  callGAS('apiSaveDraft', [getFormData()]).then(result => {
     btn.disabled = false;
     btn.textContent = '儲存草稿';
-    if (result.error) {
-      showToast('❌ ' + result.error);
-    } else {
-      showToast('✅ 草稿已儲存');
-    }
+    showToast(result.error ? '❌ ' + result.error : '✅ 草稿已儲存');
   });
 }
 
 function submitScore() {
   const filled = Object.keys(currentScores).filter(k => currentScores[k]);
-  if (filled.length < SCORE_ITEMS.length) {
-    showToast('⚠️ 請填寫所有評分項目');
-    return;
-  }
-
+  if (filled.length < SCORE_ITEMS.length) { showToast('⚠️ 請填寫所有評分項目'); return; }
   if (!confirm(`確認送出 ${employeeName} 的評分？\n截止日前可返回修改。`)) return;
 
-  const data = getFormData();
   const btn = document.getElementById('submitBtn');
   btn.disabled = true;
   btn.textContent = '送出中...';
 
-  callGAS('apiSubmitScore', [data]).then(result => {
+  callGAS('apiSubmitScore', [getFormData()]).then(result => {
     btn.disabled = false;
     if (result.error) {
       btn.textContent = '確認送出';
@@ -270,11 +233,11 @@ function submitScore() {
   });
 }
 
-function callGAS(fn, args) {
-  return new Promise((resolve, reject) => {
-    let runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
-    runner[fn](...(args || []));
-  });
+function callGAS(action, args) {
+  return fetch(GAS_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, args: args || [] }),
+  }).then(r => r.json());
 }
 
 function showToast(msg) {
@@ -284,7 +247,11 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-init();
+const s = document.createElement('script');
+s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
+s.onload = init;
+s.onerror = init; // SDK 失敗仍顯示評分頁（後端會驗證）
+document.head.appendChild(s);
 </script>
 </body>
 </html>
