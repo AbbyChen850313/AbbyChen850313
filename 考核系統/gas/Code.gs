@@ -58,6 +58,24 @@ function _verifyHR(lineUid) {
   return (info && info.isHR) ? info : { error: '無權限' };
 }
 
+/**
+ * 驗證系統管理員身份
+ * @returns managerInfo 物件，或 { error: '無系統管理員權限' }
+ */
+function _verifySysAdmin(lineUid) {
+  const info = getManagerInfo(lineUid);
+  return (info && info.isSysAdmin) ? info : { error: '無系統管理員權限' };
+}
+
+/**
+ * 驗證 HR 或系統管理員身份（任一即可）
+ * @returns managerInfo 物件，或 { error: '無權限' }
+ */
+function _verifyHROrSysAdmin(lineUid) {
+  const info = getManagerInfo(lineUid);
+  return (info && (info.isHR || info.isSysAdmin)) ? info : { error: '無權限' };
+}
+
 // ============================================================
 // Web App 路由
 // ============================================================
@@ -293,7 +311,7 @@ function apiGetEmployeesForManager(lineUid) {
 }
 
 function apiSyncEmployees(lineUid) {
-  const info = _verifyHR(lineUid);
+  const info = _verifyHROrSysAdmin(lineUid);
   if (info.error) return info;
   return syncEmployees();
 }
@@ -329,32 +347,32 @@ function apiGetScoreStatus(lineUid) {
 
 // --- Admin (HR only) ---
 function apiGetAllStatus(lineUid) {
-  const info = _verifyHR(lineUid);
+  const info = _verifyHROrSysAdmin(lineUid);
   if (info.error) return info;
   return getAllManagerStatus(getCurrentQuarter());
 }
 
 function apiUpdateSettings(lineUid, newSettings) {
-  const info = _verifyHR(lineUid);
+  const info = _verifyHROrSysAdmin(lineUid);
   if (info.error) return info;
   return updateSettings(newSettings);
 }
 
 function apiTriggerReminders(lineUid) {
-  const info = _verifyHR(lineUid);
+  const info = _verifyHROrSysAdmin(lineUid);
   if (info.error) return info;
   return sendReminderToAll(getCurrentQuarter());
 }
 
 function apiExportExcel(lineUid, quarter) {
-  const info = _verifyHR(lineUid);
+  const info = _verifyHROrSysAdmin(lineUid);
   if (info.error) return info;
   return exportScores(quarter || getCurrentQuarter());
 }
 
-/** HR 以指定主管 UID 查看其儀表板（員工列表＋評分狀態） */
+/** HR 或系統管理員以指定主管 UID 查看其儀表板（員工列表＋評分狀態） */
 function apiGetManagerDashboard(hrLineUid, targetManagerUid) {
-  const info = _verifyHR(hrLineUid);
+  const info = _verifyHROrSysAdmin(hrLineUid);
   if (info.error) return info;
   const managerInfo = getManagerInfo(targetManagerUid);
   if (!managerInfo) return { error: '查無此主管帳號' };
@@ -368,9 +386,9 @@ function apiGetManagerDashboard(hrLineUid, targetManagerUid) {
   return status;
 }
 
-/** 取得最近 100 筆日誌（HR 專用） */
+/** 取得最近 100 筆日誌（HR 或系統管理員） */
 function apiGetLogs(lineUid) {
-  const info = _verifyHR(lineUid);
+  const info = _verifyHROrSysAdmin(lineUid);
   if (info.error) return info;
 
   const sheet = _sheet('系統日誌');
@@ -426,9 +444,15 @@ function _handleLineWebhook(events) {
       if (richMenuId) { _linkRichMenuToUser(uid, richMenuId); _lineReply(replyToken, '已重置為雜人選單 (A)'); }
       else { _lineReply(replyToken, '尚未設定 Rich Menu，請先執行 setupRichMenus()'); }
 
-    } else if (text === '啟用測試') {
-      updateSettings({ '使用測試Channel': 'true' });
-      _lineReply(replyToken, '✅ 已設定使用測試Channel = true\n再傳 ping 確認');
+    } else if (text === '啟用測試' || text === '啟用正式') {
+      const adminInfo = getManagerInfo(uid);
+      if (!adminInfo || !adminInfo.isSysAdmin) {
+        _lineReply(replyToken, '❌ 無權限');
+      } else {
+        const isTest = text === '啟用測試';
+        updateSettings({ '使用測試Channel': isTest ? 'true' : 'false' });
+        _lineReply(replyToken, isTest ? '✅ 已切換到測試環境\n再傳 ping 確認' : '⚠️ 已切換到正式環境\n再傳 ping 確認');
+      }
     }
   });
 }
