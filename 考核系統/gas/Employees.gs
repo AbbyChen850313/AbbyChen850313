@@ -65,6 +65,12 @@ function syncEmployees() {
   empSheet.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#4a90d9').setFontColor('#ffffff');
   empSheet.hideColumns(6); // F欄(離職日)：系統內部使用，HR 不需要看到
 
+  // 同步到 Firestore
+  try {
+    fsSyncEmployees();
+    fsSyncAllManagerDashboards();
+  } catch (_) {}
+
   return { success: true, count: employees.length };
 }
 

@@ -128,6 +128,7 @@ function apiBindByIdentity(lineUid, displayName, name, employeeId, phone) {
     switchRichMenuByRole(lineUid, role); // 直接傳 role，省去重新查 Sheet
 
     _log('INFO', 'apiBindByIdentity', `綁定成功：${employee.name}`, { jobTitle: employee.jobTitle });
+    try { fsSyncAccounts(); } catch (_) {}
     return {
       success: true,
       name:      employee.name,

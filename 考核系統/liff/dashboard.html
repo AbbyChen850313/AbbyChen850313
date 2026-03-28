@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>考核評分系統</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="firebase-config.js"></script>
+  <script type="module">
+    import { initializeApp }              from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js';
+    import { getFirestore, doc, getDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js';
+    const _app = initializeApp(FIREBASE_CONFIG);
+    window._db = getFirestore(_app);
+    window._fsDoc     = (col, id)  => getDoc(doc(_app, col, id)).then(s => s.exists() ? s.data() : null);
+    window._fsCollection = (col)   => getDocs(collection(_app, col)).then(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
+  </script>
 </head>
 <body>
 
@@ -121,47 +130,72 @@ async function _refreshLiffUid() {
 
 async function loadDashboard(uid) {
   try {
-    const data = await callGAS('apiGetDashboard', [uid]);
-
-    if (data.error) {
-      if (data.error.includes('身份驗證')) {
-        localStorage.removeItem(LS_UID);
-        location.href = 'bind.html';
-        return;
-      }
-      showError(data.error);
+    // 先從 Firestore 讀帳號資料（快），確認角色
+    const account = await _fsDoc('accounts', uid);
+    if (!account) {
+      localStorage.removeItem(LS_UID);
+      location.href = 'bind.html';
       return;
     }
 
-    if (data.isHR) {
+    if (account.role === 'HR') {
       localStorage.setItem(LS_UID, uid);
       location.href = `admin.html?uid=${encodeURIComponent(uid)}`;
       return;
     }
 
-    if (data.isSysAdmin) {
-      _initSysAdminView(uid, data);
+    // 同時讀 dashboard snapshot + settings
+    const [dashboard, settings] = await Promise.all([
+      _fsDoc('managerDashboard', uid),
+      _fsDoc('meta', 'settings'),
+    ]);
+
+    if (!dashboard) {
+      // Firestore 尚未有資料（第一次），fallback 到 GAS
+      const data = await callGAS('apiGetDashboard', [uid]);
+      if (data.error) { showError(data.error); return; }
+      if (data.isSysAdmin) { await _initSysAdminView(uid, data); return; }
+      _renderManagerView(data);
       return;
     }
 
-    _renderManagerView(data);
+    if (account.role === '系統管理員') {
+      const accounts = await _fsCollection('accounts');
+      await _initSysAdminView(uid, { accounts: accounts.map(a => ({ ...a, lineUid: a.id })), settings });
+      return;
+    }
+
+    _renderManagerView({ ...dashboard, settings: settings || {}, myScores: {} });
+    // 背景補齊 myScores（草稿/已送出狀態）
+    _loadMyScores(uid, dashboard.quarter);
   } catch (err) {
     showError('載入失敗：' + err.message);
   }
 }
 
-function _initSysAdminView(sysAdminUid, data) {
+async function _loadMyScores(uid, quarter) {
+  try {
+    const result = await callGAS('apiGetMyScores', [uid, quarter]);
+    if (!result || result.error) return;
+    myScores = result;
+    renderEmployeeList(); // 更新評分狀態顯示
+  } catch (_) {}
+}
+
+async function _initSysAdminView(sysAdminUid, data) {
   document.getElementById('headerSubtitle').textContent = '系統管理員';
   document.getElementById('sysadminControls').style.display = 'flex';
   document.getElementById('adminLink').href = `sysadmin.html?uid=${encodeURIComponent(sysAdminUid)}`;
 
   const sel = document.getElementById('simSelect');
-  (data.accounts || []).forEach(a => {
-    const opt = document.createElement('option');
-    opt.value = a.lineUid;
-    opt.textContent = a.name;
-    sel.appendChild(opt);
-  });
+  (data.accounts || [])
+    .filter(a => a.status === '已授權')
+    .forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.lineUid || a.id;
+      opt.textContent = a.name;
+      sel.appendChild(opt);
+    });
 
   document.getElementById('employeeList').innerHTML = '<div class="loading">請選擇要切換的人員</div>';
 }

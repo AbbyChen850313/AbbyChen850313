@@ -43,6 +43,7 @@ function updateSettings(newSettings) {
       sheet.appendRow([key, value]);
     }
   }
+  try { fsSyncSettings(); } catch (_) {}
   return { success: true };
 }
 

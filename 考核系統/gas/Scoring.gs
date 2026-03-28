@@ -86,6 +86,17 @@ function _writeScore(data, isSubmitted) {
   }
 
   _log('INFO', '_writeScore', `${managerName} → ${employeeName} ${isSubmitted ? '送出' : '草稿'}`, { quarter, weightedScore });
+
+  // 同步到 Firestore
+  try {
+    fsSyncScore(quarter, data.lineUid, employeeName, {
+      managerName, section, scores, note: note || '',
+      rawScore, finalScore, weightedScore,
+      status: isSubmitted ? '已送出' : '草稿',
+    });
+    fsSyncManagerDashboard(data.lineUid, quarter);
+  } catch (_) {}
+
   return {
     success: true,
     rawScore,
