@@ -425,6 +425,10 @@ function _handleLineWebhook(events) {
       const richMenuId = settings['RichMenu_A'];
       if (richMenuId) { _linkRichMenuToUser(uid, richMenuId); _lineReply(replyToken, '已重置為雜人選單 (A)'); }
       else { _lineReply(replyToken, '尚未設定 Rich Menu，請先執行 setupRichMenus()'); }
+
+    } else if (text === '啟用測試') {
+      updateSettings({ '使用測試Channel': 'true' });
+      _lineReply(replyToken, '✅ 已設定使用測試Channel = true\n再傳 ping 確認');
     }
   });
 }
