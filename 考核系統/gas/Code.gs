@@ -522,7 +522,8 @@ function _handleLineWebhook(events) {
           initDocumentationSheets();
           setupRoleDropdown();
           setupAccountCheckboxes();
-          _lineReply(replyToken, '✅ 完成\n- 權限設定 / 系統說明 / 操作手冊已更新\n- H欄下拉 & I欄 checkbox 已補齊');
+          fixPhoneFormat();
+          _lineReply(replyToken, '✅ 完成\n- 權限設定 / 系統說明 / 操作手冊已更新\n- H欄下拉 & I欄 checkbox 已補齊\n- G欄電話格式已修復');
         } catch (err) {
           _lineReply(replyToken, '❌ 失敗：' + err.message);
         }

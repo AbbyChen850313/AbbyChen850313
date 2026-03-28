@@ -201,6 +201,8 @@ function _upsertAccount(lineUid, displayName, name, jobTitle, phone, role) {
   }
 
   const newRow = accountSheet.getLastRow() + 1;
+  // G欄（電話）設為文字格式，防止開頭 0 被吃掉
+  accountSheet.getRange(newRow, COL_ACCOUNT.PHONE + 1).setNumberFormat('@');
   // 欄位順序：姓名, UID, 顯示名稱, 綁定時間, 狀態, 職稱, 電話, 角色, 清除帳號
   accountSheet.appendRow([name, lineUid, displayName, new Date(), '已授權', jobTitle, phone || '', role || '', false]);
 
@@ -299,6 +301,26 @@ function clearCheckedAccounts() {
 }
 
 /**
+ * 修復 LINE帳號 G欄（電話）格式為文字，防止開頭 0 被吃掉
+ * 對現有資料重新寫入，確保格式正確
+ */
+function fixPhoneFormat() {
+  const sheet = _sheet('LINE帳號');
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  const phoneCol = COL_ACCOUNT.PHONE + 1;
+  const range = sheet.getRange(2, phoneCol, lastRow - 1, 1);
+  // 先設格式為文字
+  range.setNumberFormat('@');
+  // 重新寫入值（強制觸發文字格式）
+  const values = range.getValues();
+  range.setValues(values.map(([v]) => [String(v || '')]));
+
+  Logger.log(`✅ 已修復 ${lastRow - 1} 列電話格式`);
+}
+
+/**
  * 補齊 LINE帳號 I欄（清除帳號）的勾選框
  * 用於修復已存在但未設定 checkbox 的列，執行一次即可
  */
@@ -368,6 +390,8 @@ function initAccountSheet() {
   if (!sheet) sheet = ss.insertSheet('LINE帳號');
   sheet.clearContents();
   _setAccountSheetHeader(sheet);
+  // G欄（電話）整欄設為文字格式，防止開頭 0 被吃掉
+  sheet.getRange(2, COL_ACCOUNT.PHONE + 1, sheet.getMaxRows() - 1, 1).setNumberFormat('@');
   setupRoleDropdown();
 }
 
