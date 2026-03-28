@@ -90,7 +90,9 @@
       <div style="font-size:16px;font-weight:bold" id="simTitle">模擬視角</div>
       <div style="font-size:12px;opacity:.8;margin-top:2px" id="simSub"></div>
     </div>
-    <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:4px 8px;border-radius:10px">👁 模擬中</span>
+    <select id="simViewSwitch" onchange="switchSimAccount(this)"
+      style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.4);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;max-width:120px;flex-shrink:0">
+    </select>
   </div>
   <div id="simContent"></div>
 </div>
@@ -134,9 +136,11 @@ async function loadStatus() {
 async function loadSimulateTab() {
   const accounts = await callGAS('apiGetAllAccounts', [lineUid]);
   if (!accounts || accounts.error) return;
-  const sel = document.getElementById('simAccountSelect');
-  sel.innerHTML = '<option value="">-- 請選擇帳號 --</option>' +
-    accounts.map(a => `<option value="${a.lineUid}" data-role="${a.role||''}" data-name="${a.name}">${a.name}（${a.role||'同仁'}）</option>`).join('');
+  const opts = accounts.map(a =>
+    `<option value="${a.lineUid}" data-role="${a.role||''}" data-name="${a.name}">${a.name}（${a.role||'同仁'}）</option>`
+  ).join('');
+  document.getElementById('simAccountSelect').innerHTML = '<option value="">-- 請選擇帳號 --</option>' + opts;
+  document.getElementById('simViewSwitch').innerHTML = opts;
 }
 
 async function openSimView() {
@@ -147,6 +151,7 @@ async function openSimView() {
   document.getElementById('simSub').textContent = `角色：${opt.dataset.role||'同仁'}`;
   document.getElementById('simContent').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
   document.getElementById('simView').classList.add('open');
+  document.getElementById('simViewSwitch').value = sel.value;
 
   const role = opt.dataset.role;
   if (role === 'HR' || role === '系統管理員') {
@@ -182,6 +187,47 @@ async function openSimView() {
 }
 
 function closeSimView() { document.getElementById('simView').classList.remove('open'); }
+
+async function switchSimAccount(sel) {
+  const targetUid = sel.value;
+  if (!targetUid) return;
+  const opt = sel.options[sel.selectedIndex];
+  const role = opt.dataset.role || '';
+  document.getElementById('simTitle').textContent = opt.dataset.name;
+  document.getElementById('simSub').textContent = `角色：${role || '同仁'}`;
+  document.getElementById('simContent').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
+  document.getElementById('simAccountSelect').value = targetUid;
+
+  if (role === 'HR' || role === '系統管理員') {
+    const status = await callGAS('apiGetAllStatus', [lineUid]);
+    if (!status || status.error) { document.getElementById('simContent').innerHTML = `<div class="loading" style="color:#f44336">${(status&&status.error)||'無法載入'}</div>`; return; }
+    document.getElementById('simSub').textContent = `角色：HR ｜ 共 ${status.length} 位主管`;
+    document.getElementById('simContent').innerHTML = '<div style="padding:8px">' + status.map(s => {
+      const pct = s.total > 0 ? Math.round(s.scored / s.total * 100) : 0;
+      const color = pct === 100 ? '#2e7d32' : pct > 0 ? '#f57f17' : '#9e9e9e';
+      return `<div style="background:white;border-radius:8px;padding:12px 16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-weight:bold">${s.managerName}</span>
+          <span style="font-weight:bold;color:${color}">${pct}%</span>
+        </div>
+        <div style="height:4px;background:#f0f0f0;border-radius:2px"><div style="height:100%;width:${pct}%;background:${color};border-radius:2px"></div></div>
+      </div>`;
+    }).join('') + '</div>';
+  } else {
+    const data = await callGAS('apiGetManagerDashboard', [lineUid, targetUid]);
+    if (!data || data.error) { document.getElementById('simContent').innerHTML = `<div class="loading" style="color:#f44336">${(data&&data.error)||'無法載入'}</div>`; return; }
+    document.getElementById('simSub').textContent = `角色：主管 ｜ 已評 ${data.scored}/${data.total} 人`;
+    document.getElementById('simContent').innerHTML = '<div class="employee-list">' + (data.employees||[]).map(emp => {
+      const st = emp.scoreStatus || '未評分';
+      const bc = st === '已送出' ? 'badge-done' : st === '草稿' ? 'badge-draft' : 'badge-pending';
+      return `<div class="${emp.isProbation?'employee-card probation':'employee-card'}">
+        <div class="emp-avatar">${(emp.name||'?').charAt(0)}</div>
+        <div class="emp-info"><div class="emp-name">${emp.name}</div><div class="emp-meta">${emp.section} · ${emp.tenure||'-'}</div></div>
+        <span class="emp-badge ${bc}">${st}</span>
+      </div>`;
+    }).join('') + '</div>';
+  }
+}
 
 async function loadAccounts() {
   document.getElementById('accountList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';

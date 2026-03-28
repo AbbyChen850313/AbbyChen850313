@@ -104,7 +104,9 @@
       <div class="sim-title" id="simTitle">模擬視角</div>
       <div class="sim-sub" id="simSub"></div>
     </div>
-    <span style="font-size:11px;background:rgba(255,255,255,0.2);padding:4px 8px;border-radius:10px">👁 模擬中</span>
+    <select id="simViewSwitch" onchange="switchSimAccount(this)"
+      style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.4);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;max-width:120px;flex-shrink:0">
+    </select>
   </div>
   <div id="simContent"></div>
 </div>
@@ -168,11 +170,15 @@ async function loadSimulateTab() {
   const accounts = await callGAS('apiGetAllAccounts', [lineUid]);
   if (!accounts || accounts.error) return;
   _allAccounts = accounts;
-  const sel = document.getElementById('simAccountSelect');
-  sel.innerHTML = '<option value="">-- 請選擇帳號 --</option>' +
-    accounts.map(a => `<option value="${a.lineUid}" data-role="${a.role}" data-name="${a.name}">
-      ${a.name}（${a.role || '同仁'}）
-    </option>`).join('');
+
+  const opts = accounts.map(a =>
+    `<option value="${a.lineUid}" data-role="${a.role || ''}" data-name="${a.name}">${a.name}（${a.role || '同仁'}）</option>`
+  ).join('');
+
+  // 主頁選單
+  document.getElementById('simAccountSelect').innerHTML = '<option value="">-- 請選擇帳號 --</option>' + opts;
+  // 覆蓋層裡的切換下拉
+  document.getElementById('simViewSwitch').innerHTML = opts;
 }
 
 async function openSimView() {
@@ -187,6 +193,8 @@ async function openSimView() {
   document.getElementById('simSub').textContent = `角色：${role || '同仁'}`;
   document.getElementById('simContent').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
   document.getElementById('simView').classList.add('open');
+  // 同步覆蓋層下拉的選中狀態
+  document.getElementById('simViewSwitch').value = targetUid;
 
   if (role === 'HR' || role === '系統管理員') {
     await _loadSimHRView(targetUid);
@@ -257,6 +265,26 @@ async function _loadSimHRView(targetUid) {
 
 function closeSimView() {
   document.getElementById('simView').classList.remove('open');
+}
+
+async function switchSimAccount(sel) {
+  const targetUid = sel.value;
+  if (!targetUid) return;
+  const opt = sel.options[sel.selectedIndex];
+  const name = opt.dataset.name;
+  const role = opt.dataset.role || '';
+
+  document.getElementById('simTitle').textContent = name;
+  document.getElementById('simSub').textContent = `角色：${role || '同仁'}`;
+  document.getElementById('simContent').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
+  // 同步主頁下拉
+  document.getElementById('simAccountSelect').value = targetUid;
+
+  if (role === 'HR' || role === '系統管理員') {
+    await _loadSimHRView(targetUid);
+  } else {
+    await _loadSimManagerView(targetUid);
+  }
 }
 
 // ── 帳號管理 ─────────────────────────────────────────────────────
