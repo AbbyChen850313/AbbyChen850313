@@ -96,9 +96,11 @@ function setupRichMenus() {
  */
 function switchRichMenuByRole(lineUid, titleCategory) {
   const settings = getSettings();
-  // 主管（含 HR）→ C1（有考核系統 tab）；一般同仁 → B
+  // 系統管理員、主管、HR → C1；一般同仁 → B
+  const info = getManagerInfo(lineUid);
+  const isSysAdmin = info && info.isSysAdmin;
   const isManagerOrHR = MANAGER_TITLE_CATEGORIES.includes(titleCategory) || titleCategory === 'HR';
-  const richMenuId = isManagerOrHR ? settings['RichMenu_C1'] : settings['RichMenu_B'];
+  const richMenuId = (isSysAdmin || isManagerOrHR) ? settings['RichMenu_C1'] : settings['RichMenu_B'];
 
   if (!richMenuId) {
     Logger.log('switchRichMenuByRole: 找不到 RichMenu ID，請先執行 setupRichMenus()');
