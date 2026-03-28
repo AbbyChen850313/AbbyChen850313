@@ -475,6 +475,7 @@ function _handleLineWebhook(events) {
         lines.push('');
         lines.push('🔧 系統管理員專用：');
         lines.push('初始化 — 建立角色下拉與 checkbox');
+        lines.push('更新文件 — 更新說明 Sheet & 補齊下拉/checkbox');
         lines.push('啟用測試 / 啟用正式 — 切換環境');
         lines.push('建立選單 — 執行 setupRichMenus');
       }
@@ -488,6 +489,21 @@ function _handleLineWebhook(events) {
       } else {
         switchRichMenuByRole(uid); // 不傳 role → 重新查 Sheet 取最新角色
         _lineReply(replyToken, `✅ 選單已依目前角色（${userInfo.role || '同仁'}）更新`);
+      }
+
+    } else if (text === '更新文件') {
+      const adminInfo = getManagerInfo(uid);
+      if (!adminInfo || !adminInfo.isSysAdmin) {
+        _lineReply(replyToken, '❌ 無權限');
+      } else {
+        try {
+          initDocumentationSheets();
+          setupRoleDropdown();
+          setupAccountCheckboxes();
+          _lineReply(replyToken, '✅ 完成\n- 權限設定 / 系統說明 / 操作手冊已更新\n- LINE帳號 H欄下拉 & I欄 checkbox 已補齊');
+        } catch (err) {
+          _lineReply(replyToken, '❌ 失敗：' + err.message);
+        }
       }
 
     } else if (text === '建立選單') {
