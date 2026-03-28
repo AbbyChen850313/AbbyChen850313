@@ -21,7 +21,7 @@ function sendReminder(lineUid, message) {
     method: 'post',
     contentType: 'application/json',
     headers: {
-      Authorization: `Bearer ${CONFIG.LINE_BOT_TOKEN}`,
+      Authorization: `Bearer ${_getBotToken()}`,
     },
     payload: payload,
     muteHttpExceptions: true,
@@ -48,21 +48,9 @@ function sendReminderToAll(quarter) {
   const allStatus = getAllManagerStatus(quarter);
   let sent = 0;
 
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  const accountSheet = ss.getSheetByName('LINE帳號');
-  const accountData = accountSheet.getDataRange().getValues();
-
-  // 建立 名稱→UID 對照
-  const uidMap = {};
-  for (let i = 1; i < accountData.length; i++) {
-    uidMap[accountData[i][0]] = accountData[i][1];
-  }
-
   for (const status of allStatus) {
     if (status.pending <= 0) continue;
-
-    const uid = uidMap[status.managerName];
-    if (!uid) continue;
+    if (!status.lineUid) continue;
 
     const message =
       `📋 考核評分提醒\n\n` +
@@ -72,7 +60,7 @@ function sendReminderToAll(quarter) {
       `截止日：${deadline}\n\n` +
       `請盡快完成評分，謝謝！`;
 
-    sendReminder(uid, message);
+    sendReminder(status.lineUid, message);
     sent++;
     Utilities.sleep(200); // 避免 LINE API 速率限制
   }

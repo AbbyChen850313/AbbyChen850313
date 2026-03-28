@@ -236,13 +236,12 @@ function _sixCellAreas(startY) {
  * 判斷依據：Line帳號 中是否有對應設定，預設用正式
  */
 function _getBotToken() {
-  try {
-    const settings = getSettings();
-    if (settings['使用測試Channel'] === true || settings['使用測試Channel'] === 'true') {
-      return CONFIG.LINE_BOT_TOKEN_TEST;
-    }
-  } catch (_) {}
-  return CONFIG.LINE_BOT_TOKEN;
+  const settings = getSettings();
+  const isTest = settings['使用測試Channel'] === true || settings['使用測試Channel'] === 'true';
+  if (!isTest) {
+    throw new Error('🚫 禁止使用正式帳號！請先在「系統設定」工作表將「使用測試Channel」設為 true，再重新執行。');
+  }
+  return CONFIG.LINE_BOT_TOKEN_TEST;
 }
 
 function _lineApiPost(path, payload) {
@@ -302,6 +301,23 @@ function _createOrUpdateAlias(aliasId, richMenuId) {
     richMenuAliasId: aliasId,
     richMenuId: richMenuId,
   });
+}
+
+/**
+ * 清除全域預設 Rich Menu（還原正式帳號原本的選單）
+ * 在 GAS 編輯器手動執行一次即可
+ */
+function clearDefaultRichMenu() {
+  const token = CONFIG.LINE_BOT_TOKEN; // ⚠️ 這個函式專門修復正式帳號，故意用正式 token
+  const response = UrlFetchApp.fetch(
+    'https://api.line.me/v2/bot/user/all/richmenu',
+    {
+      method: 'delete',
+      headers: { Authorization: `Bearer ${token}` },
+      muteHttpExceptions: true,
+    }
+  );
+  Logger.log(`清除預設 Rich Menu: ${response.getResponseCode()} ${response.getContentText()}`);
 }
 
 /** 設定全域預設 Rich Menu */
