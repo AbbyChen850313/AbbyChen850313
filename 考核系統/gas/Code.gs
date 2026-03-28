@@ -346,6 +346,7 @@ function apiGetMyScores(lineUid, quarter) {
 function apiGetScoreStatus(lineUid) {
   const info = _verifyManager(lineUid);
   if (info.error) return info;
+  if (info.isSysAdmin) return { isSysAdmin: true, managerName: info.managerName };
   if (info.isHR) return { isHR: true };
   const status = getScoreStatus(info, getCurrentQuarter());
   status.managerName = info.managerName;

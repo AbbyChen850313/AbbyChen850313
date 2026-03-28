@@ -198,9 +198,7 @@ async function doBindByIdentity() {
 function goToDashboard(role) {
   if (lineUid) localStorage.setItem('liff_uid', lineUid);
   const uid = encodeURIComponent(lineUid);
-  if (role === '系統管理員') {
-    location.href = `sysadmin.html?uid=${uid}`;
-  } else if (role === 'HR') {
+  if (role === 'HR') {
     location.href = `admin.html?uid=${uid}`;
   } else {
     location.href = `dashboard.html?uid=${uid}`;
