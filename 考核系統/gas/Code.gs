@@ -459,6 +459,26 @@ function _handleLineWebhook(events) {
         }
       }
 
+    } else if (text === 'help' || text === '指令') {
+      const userInfo = getManagerInfo(uid);
+      const isSysAdmin = userInfo && userInfo.isSysAdmin;
+      const lines = [
+        '📋 可用指令：',
+        '',
+        'ping — 確認環境狀態',
+        '設定 — 取得綁定連結',
+        '更新選單 — 依角色同步圖文選單',
+        '主管 / 同仁 / 重置 — 手動切換選單',
+      ];
+      if (isSysAdmin) {
+        lines.push('');
+        lines.push('🔧 系統管理員專用：');
+        lines.push('初始化 — 建立角色下拉與 checkbox');
+        lines.push('啟用測試 / 啟用正式 — 切換環境');
+        lines.push('建立選單 — 執行 setupRichMenus');
+      }
+      _lineReply(replyToken, lines.join('\n'));
+
     } else if (text === '更新選單') {
       // 任何已綁定帳號都可以觸發，依目前角色更新自己的選單
       const userInfo = getManagerInfo(uid);
