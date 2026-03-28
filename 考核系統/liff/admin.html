@@ -11,15 +11,13 @@
     .tab-btn.active { color: #06c755; border-bottom-color: #06c755; font-weight: bold; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
-    /* 主管視角底部面板 */
-    .mgr-panel-overlay { display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100 }
-    .mgr-panel-overlay.open { display:block }
-    .mgr-panel { position:fixed;bottom:0;left:0;right:0;background:white;border-radius:16px 16px 0 0;max-height:80vh;overflow-y:auto;z-index:101;padding:0 0 20px }
-    .mgr-panel-handle { width:36px;height:4px;background:#ddd;border-radius:2px;margin:12px auto 8px }
-    .mgr-panel-title { font-size:15px;font-weight:bold;padding:0 16px 12px;border-bottom:1px solid #f0f0f0 }
-    .emp-row { display:flex;align-items:center;padding:10px 16px;border-bottom:1px solid #f5f5f5 }
-    .emp-row-name { flex:1;font-size:14px }
-    .emp-row-meta { font-size:11px;color:#aaa;margin-top:2px }
+    /* 主管視角全屏 */
+    .mgr-view { display:none;position:fixed;inset:0;background:#f5f5f5;z-index:200;overflow-y:auto }
+    .mgr-view.open { display:block }
+    .mgr-view-header { background:linear-gradient(135deg,#06c755,#04a344);color:white;padding:16px;display:flex;align-items:center;gap:12px }
+    .mgr-back-btn { background:none;border:none;color:white;font-size:22px;line-height:1;cursor:pointer;padding:0 4px }
+    .mgr-view-name { font-size:16px;font-weight:bold;margin:0 }
+    .mgr-view-sub { font-size:12px;opacity:.85;margin-top:2px }
   </style>
 </head>
 <body>
@@ -125,12 +123,23 @@
   </div>
 </div>
 
-<!-- 主管視角面板 -->
-<div class="mgr-panel-overlay" id="mgrOverlay" onclick="closeMgrPanel()"></div>
-<div class="mgr-panel" id="mgrPanel">
-  <div class="mgr-panel-handle"></div>
-  <div class="mgr-panel-title" id="mgrPanelTitle">主管視角</div>
-  <div id="mgrPanelBody"><div class="loading"><div class="spinner"></div>載入中...</div></div>
+<!-- 主管視角全屏 -->
+<div class="mgr-view" id="mgrView">
+  <div class="mgr-view-header">
+    <button class="mgr-back-btn" onclick="closeMgrView()">←</button>
+    <div>
+      <div class="mgr-view-name" id="mgrViewName">主管視角</div>
+      <div class="mgr-view-sub" id="mgrViewSub"></div>
+    </div>
+  </div>
+  <div class="filter-bar">
+    <button class="filter-btn active" onclick="filterMgrView('all',this)">全部</button>
+    <button class="filter-btn" onclick="filterMgrView('pending',this)">未評分</button>
+    <button class="filter-btn" onclick="filterMgrView('draft',this)">草稿</button>
+    <button class="filter-btn" onclick="filterMgrView('done',this)">已送出</button>
+    <button class="filter-btn" onclick="filterMgrView('probation',this)">試用期</button>
+  </div>
+  <div class="employee-list" id="mgrViewList"><div class="loading"><div class="spinner"></div>載入中...</div></div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -140,7 +149,7 @@ const LIFF_ID = '2009611318-5UphK9JK';
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
 
 const params = new URLSearchParams(location.search);
-let lineUid = decodeURIComponent(params.get('uid') || '');
+let lineUid = decodeURIComponent(params.get('uid') || '') || localStorage.getItem('liff_uid') || '';
 
 function switchTab(tab) {
   const tabs = ['progress', 'accounts', 'settings', 'export', 'logs'];
@@ -162,23 +171,25 @@ async function loadProgress() {
       `<div class="loading" style="color:#f44336">${(status && status.error) || '無法載入'}</div>`;
     return;
   }
-  document.getElementById('progressTable').innerHTML = `
-    <table class="admin-table">
-      <thead><tr><th>主管</th><th>已評/總計</th><th>進度</th><th></th></tr></thead>
-      <tbody>
-        ${status.map(s => {
-          const pct = s.total > 0 ? Math.round(s.scored / s.total * 100) : 0;
-          const color = pct === 100 ? '#2e7d32' : pct > 0 ? '#f57f17' : '#9e9e9e';
-          return `<tr>
-            <td>${s.managerName}</td>
-            <td style="text-align:center">${s.scored}/${s.total}</td>
-            <td><span style="color:${color};font-weight:bold">${pct}%</span></td>
-            <td><button class="btn btn-secondary" style="padding:4px 10px;font-size:12px"
-                onclick="openMgrPanel('${s.lineUid}','${s.managerName}')">查看</button></td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>`;
+  document.getElementById('progressTable').innerHTML = status.map(s => {
+    const pct = s.total > 0 ? Math.round(s.scored / s.total * 100) : 0;
+    const color = pct === 100 ? '#2e7d32' : pct > 0 ? '#f57f17' : '#9e9e9e';
+    const barW = pct + '%';
+    return `<div onclick="openMgrView('${s.lineUid}','${s.managerName}')"
+               style="background:white;border-radius:8px;padding:12px 16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06);cursor:pointer;active:opacity:.7">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-weight:bold;font-size:15px">${s.managerName}</span>
+        <span style="font-size:13px;font-weight:bold;color:${color}">${pct}%</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:#888;margin-bottom:6px">
+        <span>已評 ${s.scored} / 共 ${s.total} 人</span>
+        <span style="color:#06c755">點擊查看 ›</span>
+      </div>
+      <div style="height:4px;background:#f0f0f0;border-radius:2px">
+        <div style="height:100%;width:${barW};background:${color};border-radius:2px;transition:width .3s"></div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 async function triggerReminder() {
@@ -273,35 +284,65 @@ async function loadAccounts() {
     </div>`).join('');
 }
 
-async function openMgrPanel(targetUid, managerName) {
-  document.getElementById('mgrPanelTitle').textContent = `👤 ${managerName} 的員工名單`;
-  document.getElementById('mgrPanelBody').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
-  document.getElementById('mgrOverlay').classList.add('open');
+let _mgrAllEmps = [];
+let _mgrFilter = 'all';
+
+async function openMgrView(targetUid, managerName) {
+  _mgrFilter = 'all';
+  document.getElementById('mgrViewName').textContent = managerName;
+  document.getElementById('mgrViewSub').textContent = '載入中...';
+  document.getElementById('mgrViewList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
+  document.getElementById('mgrView').classList.add('open');
+  // reset filter buttons
+  document.querySelectorAll('#mgrView .filter-btn').forEach((b,i) => b.classList.toggle('active', i===0));
 
   const data = await callGAS('apiGetManagerDashboard', [lineUid, targetUid]);
   if (!data || data.error) {
-    document.getElementById('mgrPanelBody').innerHTML =
+    document.getElementById('mgrViewList').innerHTML =
       `<div class="loading" style="color:#f44336">${(data && data.error) || '無法載入'}</div>`;
     return;
   }
-  const badgeColor = { '已送出': '#2e7d32', '草稿': '#f57f17', '未評分': '#9e9e9e' };
-  document.getElementById('mgrPanelBody').innerHTML = data.employees.length === 0
-    ? '<div class="loading">無負責員工</div>'
-    : data.employees.map(emp => {
-        const st = emp.scoreStatus || '未評分';
-        const color = badgeColor[st] || '#9e9e9e';
-        return `<div class="emp-row">
-          <div style="flex:1">
-            <div class="emp-row-name">${emp.name}${emp.isProbation ? ' <span style="font-size:10px;color:#f57f17">試用期</span>' : ''}</div>
-            <div class="emp-row-meta">${emp.section} · ${emp.tenure || '-'}</div>
-          </div>
-          <span style="font-size:12px;font-weight:bold;color:${color}">${st}</span>
-        </div>`;
-      }).join('');
+  _mgrAllEmps = data.employees || [];
+  const pct = data.total > 0 ? Math.round(data.scored / data.total * 100) : 0;
+  document.getElementById('mgrViewSub').textContent = `已評 ${data.scored}/${data.total} 人（${pct}%）`;
+  renderMgrView();
 }
 
-function closeMgrPanel() {
-  document.getElementById('mgrOverlay').classList.remove('open');
+function filterMgrView(type, btn) {
+  _mgrFilter = type;
+  document.querySelectorAll('#mgrView .filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderMgrView();
+}
+
+function renderMgrView() {
+  let list = _mgrAllEmps;
+  if (_mgrFilter === 'pending') list = list.filter(e => e.scoreStatus !== '已送出' && e.scoreStatus !== '草稿');
+  else if (_mgrFilter === 'draft') list = list.filter(e => e.scoreStatus === '草稿');
+  else if (_mgrFilter === 'done') list = list.filter(e => e.scoreStatus === '已送出');
+  else if (_mgrFilter === 'probation') list = list.filter(e => e.isProbation);
+
+  if (list.length === 0) {
+    document.getElementById('mgrViewList').innerHTML = '<div class="loading">無符合條件的員工</div>';
+    return;
+  }
+  document.getElementById('mgrViewList').innerHTML = list.map(emp => {
+    const st = emp.scoreStatus || '未評分';
+    const badgeClass = st === '已送出' ? 'badge-done' : st === '草稿' ? 'badge-draft' : 'badge-pending';
+    const cardClass = emp.isProbation ? 'employee-card probation' : 'employee-card';
+    return `<div class="${cardClass}">
+      <div class="emp-avatar">${emp.name ? emp.name.charAt(0) : '?'}</div>
+      <div class="emp-info">
+        <div class="emp-name">${emp.name}${emp.isProbation ? '<span class="emp-badge badge-probation" style="font-size:10px;margin-left:4px">試用期</span>' : ''}</div>
+        <div class="emp-meta">${emp.section} · 年資 ${emp.tenure || '-'}</div>
+      </div>
+      <span class="emp-badge ${badgeClass}">${st}</span>
+    </div>`;
+  }).join('');
+}
+
+function closeMgrView() {
+  document.getElementById('mgrView').classList.remove('open');
 }
 
 let _logsCache = [];
