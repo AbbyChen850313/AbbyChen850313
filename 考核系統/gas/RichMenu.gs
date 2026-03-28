@@ -15,8 +15,8 @@
 const RICH_MENU_IMAGES = {
   A:   '1w5zK-TqxFUyN_UxGIRkVMN9MoBZJOpA4',  // 雜人/未綁定選單
   B:   '1yB-aWx8781knytIrFXHYsmU_jAJ862zq',  // 同仁選單
-  C1:  '1prP0pLQeIbbpLlpz1m0izeu4wl_M5oxu',  // 主管第一頁（頂部300px Tab亮）
-  C2:  '1BpXaXmOxNSj-5LJX0LUh7YtT5_48y_Mn',  // 主管第二頁（頂部300px Tab亮）
+  C1:  'TODO_上傳c1_tab.jpg到Drive後填入',     // 主管第一頁（頂部300px Tab亮）← 圖片在本機 C:\Users\user\richmenu-test\tmp_imgs\c1_tab.jpg
+  C2:  'TODO_上傳c2_tab.jpg到Drive後填入',     // 主管第二頁（頂部300px Tab亮）← 圖片在本機 C:\Users\user\richmenu-test\tmp_imgs\c2_tab.jpg
 };
 
 // ── 各按鈕連結（由 AI 團隊填入實際 URL）────────────────────
