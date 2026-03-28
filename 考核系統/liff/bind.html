@@ -127,14 +127,13 @@ async function init() {
       return;
     }
 
-    document.getElementById('loadingView').style.display = 'none';
     if (check.bound) {
-      document.getElementById('alreadyBoundName').textContent =
-        `您好，${check.name}（${check.jobTitle}）`;
-      document.getElementById('alreadyBoundView').style.display = 'block';
-    } else {
-      document.getElementById('formView').style.display = 'block';
+      // 已綁定直接跳轉，不顯示中間確認頁
+      goToDashboard();
+      return;
     }
+    document.getElementById('loadingView').style.display = 'none';
+    document.getElementById('formView').style.display = 'block';
   } catch (err) {
     showError(err.message);
   }
