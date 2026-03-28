@@ -408,6 +408,26 @@ function apiGetLogs(lineUid) {
 // LINE Webhook 處理
 // ============================================================
 
+// ── 需要 ping 確認才執行的高風險指令 ──────────────────────────
+// 流程：傳指令 → 系統暫存 → 傳 ping → 系統執行 + 顯示狀態
+// 低風險指令直接執行，不需 ping 確認
+
+/** 暫存待確認動作（有效期 5 分鐘） */
+function _setPendingAction(uid, action) {
+  PropertiesService.getScriptProperties()
+    .setProperty(`PENDING_${uid}`, JSON.stringify({ action, ts: Date.now() }));
+}
+
+/** 取出待確認動作（取出後立即清除；逾時回 null） */
+function _popPendingAction(uid) {
+  const props = PropertiesService.getScriptProperties();
+  const raw = props.getProperty(`PENDING_${uid}`);
+  if (!raw) return null;
+  props.deleteProperty(`PENDING_${uid}`);
+  const { action, ts } = JSON.parse(raw);
+  return (Date.now() - ts < 5 * 60 * 1000) ? action : null;
+}
+
 function _handleLineWebhook(events) {
   events.forEach(event => {
     if (event.type !== 'message' || event.message.type !== 'text') return;
@@ -416,16 +436,27 @@ function _handleLineWebhook(events) {
     const uid = event.source.userId;
     const settings = getSettings();
 
+    // ── ping：先執行暫存動作（若有），再回傳狀態 ──────────────
     if (text === 'ping') {
+      const pending = _popPendingAction(uid);
+      let execMsg = '';
+      if (pending) {
+        try {
+          execMsg = _executePendingAction(pending, uid, settings);
+        } catch (err) {
+          execMsg = `❌ 執行失敗：${err.message}`;
+        }
+      }
       const env = getActiveEnv();
-      const reply = [
+      const statusMsg = [
         '🤖 系統回應 OK',
         `環境：${env.isTest ? '✅ 測試Channel' : '⚠️ 正式Channel'}`,
         `季度：${settings['當前季度'] || '未設定'}`,
         `評分期間：${settings['評分期間描述'] || '未設定'}`,
       ].join('\n');
-      _lineReply(replyToken, reply);
+      _lineReply(replyToken, execMsg ? `${execMsg}\n\n${statusMsg}` : statusMsg);
 
+    // ── 低風險：直接執行 ──────────────────────────────────────
     } else if (text === '設定' || text === '綁定設定') {
       _lineReply(replyToken, `請點以下連結進行帳號綁定：\nhttps://liff.line.me/${getActiveEnv().liffId}`);
 
@@ -444,79 +475,13 @@ function _handleLineWebhook(events) {
       if (richMenuId) { _linkRichMenuToUser(uid, richMenuId); _lineReply(replyToken, '已重置為雜人選單 (A)'); }
       else { _lineReply(replyToken, '尚未設定 Rich Menu，請先執行 setupRichMenus()'); }
 
-    } else if (text === '初始化') {
-      // 初始化只需要有綁定帳號即可（第一次設定時 H 欄角色還是空的）
-      const adminInfo = getManagerInfo(uid);
-      if (!adminInfo) {
-        _lineReply(replyToken, '❌ 請先完成帳號綁定');
-      } else {
-        try {
-          setupRoleDropdown();
-          setupAccountCheckboxes();
-          _lineReply(replyToken, '✅ 初始化完成\n- H欄（角色）下拉選單已建立\n- I欄（清除帳號）checkbox 已修正\n\n請去 Sheet 把你的帳號 H 欄設為「系統管理員」，完成後傳「ping」確認');
-        } catch (err) {
-          _lineReply(replyToken, '❌ 初始化失敗：' + err.message);
-        }
-      }
-
-    } else if (text === 'help' || text === '指令') {
-      const userInfo = getManagerInfo(uid);
-      const isSysAdmin = userInfo && userInfo.isSysAdmin;
-      const lines = [
-        '📋 可用指令：',
-        '',
-        'ping — 確認環境狀態',
-        '設定 — 取得綁定連結',
-        '取消綁定 — 解除帳號綁定',
-        '更新選單 — 依角色同步圖文選單',
-        '主管 / 同仁 / 重置 — 手動切換選單',
-      ];
-      if (isSysAdmin) {
-        lines.push('');
-        lines.push('🔧 系統管理員專用：');
-        lines.push('初始化 — 建立角色下拉與 checkbox');
-        lines.push('更新文件 — 更新說明 Sheet & 補齊下拉/checkbox');
-        lines.push('啟用測試 / 啟用正式 — 切換環境');
-        lines.push('建立選單 — 執行 setupRichMenus');
-      }
-      _lineReply(replyToken, lines.join('\n'));
-
     } else if (text === '更新選單') {
-      // 任何已綁定帳號都可以觸發，依目前角色更新自己的選單
       const userInfo = getManagerInfo(uid);
       if (!userInfo) {
         _lineReply(replyToken, '❌ 請先完成帳號綁定');
       } else {
-        switchRichMenuByRole(uid); // 不傳 role → 重新查 Sheet 取最新角色
+        switchRichMenuByRole(uid);
         _lineReply(replyToken, `✅ 選單已依目前角色（${userInfo.role || '同仁'}）更新`);
-      }
-
-    } else if (text === '更新文件') {
-      const adminInfo = getManagerInfo(uid);
-      if (!adminInfo || !adminInfo.isSysAdmin) {
-        _lineReply(replyToken, '❌ 無權限');
-      } else {
-        try {
-          initDocumentationSheets();
-          setupRoleDropdown();
-          setupAccountCheckboxes();
-          _lineReply(replyToken, '✅ 完成\n- 權限設定 / 系統說明 / 操作手冊已更新\n- LINE帳號 H欄下拉 & I欄 checkbox 已補齊');
-        } catch (err) {
-          _lineReply(replyToken, '❌ 失敗：' + err.message);
-        }
-      }
-
-    } else if (text === '建立選單') {
-      const adminInfo = getManagerInfo(uid);
-      if (!adminInfo || !adminInfo.isSysAdmin) {
-        _lineReply(replyToken, '❌ 無權限');
-      } else {
-        try {
-          setupRichMenus();
-          _lineReply(replyToken, '✅ Rich Menu 建立完成\n傳「ping」確認環境正確');
-        } catch (err) {
-          _lineReply(replyToken, '❌ 建立失敗：' + err.message);
-        }
       }
 
     } else if (text === '取消綁定') {
@@ -534,17 +499,106 @@ function _handleLineWebhook(events) {
         _lineReply(replyToken, '❌ 系統錯誤：找不到 LINE帳號 工作表');
       }
 
-    } else if (text === '啟用測試' || text === '啟用正式') {
+    } else if (text === '初始化') {
+      const adminInfo = getManagerInfo(uid);
+      if (!adminInfo) {
+        _lineReply(replyToken, '❌ 請先完成帳號綁定');
+      } else {
+        try {
+          setupRoleDropdown();
+          setupAccountCheckboxes();
+          _lineReply(replyToken, '✅ 初始化完成\n- H欄（角色）下拉選單已建立\n- I欄（清除帳號）checkbox 已修正\n\n請去 Sheet 把你的帳號 H 欄設為「系統管理員」');
+        } catch (err) {
+          _lineReply(replyToken, '❌ 初始化失敗：' + err.message);
+        }
+      }
+
+    } else if (text === '更新文件') {
       const adminInfo = getManagerInfo(uid);
       if (!adminInfo || !adminInfo.isSysAdmin) {
         _lineReply(replyToken, '❌ 無權限');
       } else {
-        const isTest = text === '啟用測試';
-        updateSettings({ '使用測試Channel': isTest ? 'true' : 'false' });
-        _lineReply(replyToken, isTest ? '✅ 已切換到測試環境\n再傳 ping 確認' : '⚠️ 已切換到正式環境\n再傳 ping 確認');
+        try {
+          initDocumentationSheets();
+          setupRoleDropdown();
+          setupAccountCheckboxes();
+          _lineReply(replyToken, '✅ 完成\n- 權限設定 / 系統說明 / 操作手冊已更新\n- H欄下拉 & I欄 checkbox 已補齊');
+        } catch (err) {
+          _lineReply(replyToken, '❌ 失敗：' + err.message);
+        }
       }
+
+    // ── 高風險：暫存 → 等 ping 確認後才執行 ─────────────────
+    } else if (text === '啟用測試') {
+      const adminInfo = getManagerInfo(uid);
+      if (!adminInfo || !adminInfo.isSysAdmin) {
+        _lineReply(replyToken, '❌ 無權限');
+      } else {
+        _setPendingAction(uid, '啟用測試');
+        _lineReply(replyToken, '⚠️ 即將切換到【測試環境】\n確認請傳 ping（5分鐘內有效）');
+      }
+
+    } else if (text === '啟用正式') {
+      const adminInfo = getManagerInfo(uid);
+      if (!adminInfo || !adminInfo.isSysAdmin) {
+        _lineReply(replyToken, '❌ 無權限');
+      } else {
+        _setPendingAction(uid, '啟用正式');
+        _lineReply(replyToken, '⚠️ 即將切換到【正式環境】，請確認！\n確認請傳 ping（5分鐘內有效）');
+      }
+
+    } else if (text === '建立選單') {
+      const adminInfo = getManagerInfo(uid);
+      if (!adminInfo || !adminInfo.isSysAdmin) {
+        _lineReply(replyToken, '❌ 無權限');
+      } else {
+        _setPendingAction(uid, '建立選單');
+        _lineReply(replyToken, '⚠️ 即將重建所有 Rich Menu\n確認請傳 ping（5分鐘內有效）');
+      }
+
+    } else if (text === 'help' || text === '指令') {
+      const userInfo = getManagerInfo(uid);
+      const isSysAdmin = userInfo && userInfo.isSysAdmin;
+      const lines = [
+        '📋 可用指令：',
+        '',
+        'ping — 確認狀態（同時執行待確認動作）',
+        '設定 — 取得綁定連結',
+        '取消綁定 — 解除帳號綁定',
+        '更新選單 — 依角色同步圖文選單',
+        '主管 / 同仁 / 重置 — 手動切換選單',
+      ];
+      if (isSysAdmin) {
+        lines.push('');
+        lines.push('🔧 系統管理員（需 ping 確認）：');
+        lines.push('初始化 — 建立角色下拉與 checkbox');
+        lines.push('更新文件 — 更新說明 Sheet');
+        lines.push('啟用測試 / 啟用正式 → ping 執行');
+        lines.push('建立選單 → ping 執行');
+      }
+      _lineReply(replyToken, lines.join('\n'));
     }
   });
+}
+
+/**
+ * 執行從 ping 觸發的待確認動作
+ * @returns {string} 執行結果訊息
+ */
+function _executePendingAction(action, uid, settings) {
+  if (action === '啟用測試') {
+    updateSettings({ '使用測試Channel': 'true' });
+    return '✅ 已切換到測試環境';
+  }
+  if (action === '啟用正式') {
+    updateSettings({ '使用測試Channel': 'false' });
+    return '✅ 已切換到正式環境';
+  }
+  if (action === '建立選單') {
+    setupRichMenus();
+    return '✅ Rich Menu 建立完成';
+  }
+  return `⚠️ 未知動作：${action}`;
 }
 
 function _lineReply(replyToken, text) {
