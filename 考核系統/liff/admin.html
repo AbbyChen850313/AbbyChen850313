@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="styles.css">
   <style>
     .tab-bar { display: flex; background: white; border-bottom: 1px solid #eee; padding: 0 8px; }
-    .tab-btn { flex: 1; padding: 12px 4px; border: none; background: none; font-size: 13px; color: #888; border-bottom: 2px solid transparent; cursor: pointer; }
+    .tab-btn { flex: 1; padding: 12px 2px; border: none; background: none; font-size: 12px; color: #888; border-bottom: 2px solid transparent; cursor: pointer; }
     .tab-btn.active { color: #06c755; border-bottom-color: #06c755; font-weight: bold; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
@@ -25,6 +25,7 @@
   <button class="tab-btn" onclick="switchTab('accounts')">帳號管理</button>
   <button class="tab-btn" onclick="switchTab('settings')">系統設定</button>
   <button class="tab-btn" onclick="switchTab('export')">匯出</button>
+  <button class="tab-btn" onclick="switchTab('logs')">日誌</button>
 </div>
 
 <div class="tab-content active" id="tab-progress">
@@ -39,14 +40,10 @@
 
 <div class="tab-content" id="tab-accounts">
   <div style="padding:8px">
-    <div class="score-section">
-      <div class="section-title">已綁定帳號</div>
-      <div style="font-size:12px;color:#555;margin-bottom:10px">
-        員工輸入姓名與員工編號後自行完成綁定。<br>
-        已綁定清單可在 Google Sheets <strong>LINE帳號</strong> 工作表查看。<br>
-        如需刪除帳號，在工作表 G欄勾選後執行 <code>clearCheckedAccounts()</code>。
-      </div>
+    <div style="margin-bottom:8px">
+      <button class="btn btn-primary" style="width:100%;padding:10px" onclick="loadAccounts()">🔄 重新整理</button>
     </div>
+    <div id="accountList"><div class="loading"><div class="spinner"></div>載入中...</div></div>
   </div>
 </div>
 
@@ -104,6 +101,21 @@
   </div>
 </div>
 
+<div class="tab-content" id="tab-logs">
+  <div style="padding:8px">
+    <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center">
+      <button class="btn btn-primary" style="flex:1;padding:10px" onclick="loadLogs()">🔄 重新整理</button>
+      <select id="logFilter" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:13px" onchange="renderLogs()">
+        <option value="all">全部</option>
+        <option value="ERROR">ERROR</option>
+        <option value="WARN">WARN</option>
+        <option value="INFO">INFO</option>
+      </select>
+    </div>
+    <div id="logList"><div class="loading"><div class="spinner"></div>載入中...</div></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -114,14 +126,16 @@ const params = new URLSearchParams(location.search);
 let lineUid = decodeURIComponent(params.get('uid') || '');
 
 function switchTab(tab) {
+  const tabs = ['progress', 'accounts', 'settings', 'export', 'logs'];
   document.querySelectorAll('.tab-btn').forEach((btn, i) => {
-    const tabs = ['progress', 'accounts', 'settings', 'export'];
     btn.classList.toggle('active', tabs[i] === tab);
   });
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   if (tab === 'progress') loadProgress();
+  if (tab === 'accounts') loadAccounts();
   if (tab === 'settings' || tab === 'export') loadSettings();
+  if (tab === 'logs') loadLogs();
 }
 
 async function loadProgress() {
@@ -211,6 +225,76 @@ function showToast(msg) {
   t.textContent = msg;
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+async function loadAccounts() {
+  document.getElementById('accountList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
+  const accounts = await callGAS('apiGetAllAccounts', [lineUid]);
+  if (!accounts || accounts.error) {
+    document.getElementById('accountList').innerHTML =
+      `<div class="loading" style="color:#f44336">${(accounts && accounts.error) || '無法載入'}</div>`;
+    return;
+  }
+  if (accounts.length === 0) {
+    document.getElementById('accountList').innerHTML = '<div class="loading">尚無已綁定帳號</div>';
+    return;
+  }
+  document.getElementById('accountList').innerHTML = accounts.map(a => `
+    <div style="background:white;border-radius:8px;padding:12px 16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:bold;font-size:15px">${a.name}</div>
+          <div style="font-size:12px;color:#888;margin-top:2px">${a.role} ｜ ${a.phone || '未填電話'}</div>
+          <div style="font-size:11px;color:#bbb;margin-top:2px">綁定：${a.boundAt}</div>
+        </div>
+        <button class="btn btn-danger" style="flex:none;padding:8px 14px;font-size:13px"
+                onclick="resetAccount('${a.lineUid}', '${a.name}')">取消綁定</button>
+      </div>
+    </div>`).join('');
+}
+
+let _logsCache = [];
+
+async function loadLogs() {
+  document.getElementById('logList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
+  const logs = await callGAS('apiGetLogs', [lineUid]);
+  if (!logs || logs.error) {
+    document.getElementById('logList').innerHTML =
+      `<div class="loading" style="color:#f44336">${(logs && logs.error) || '無法載入'}</div>`;
+    return;
+  }
+  _logsCache = logs;
+  renderLogs();
+}
+
+function renderLogs() {
+  const filter = document.getElementById('logFilter').value;
+  const logs = filter === 'all' ? _logsCache : _logsCache.filter(l => l.level === filter);
+  if (logs.length === 0) {
+    document.getElementById('logList').innerHTML = '<div class="loading">無日誌記錄</div>';
+    return;
+  }
+  const levelColor = { ERROR: '#f44336', WARN: '#f57f17', INFO: '#1565c0' };
+  document.getElementById('logList').innerHTML = logs.map(l => `
+    <div style="background:white;border-radius:6px;padding:10px 12px;margin-bottom:6px;box-shadow:0 1px 3px rgba(0,0,0,0.06);border-left:3px solid ${levelColor[l.level] || '#ccc'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:11px;font-weight:bold;color:${levelColor[l.level] || '#888'}">${l.level}</span>
+        <span style="font-size:11px;color:#aaa">${l.time}</span>
+      </div>
+      <div style="font-size:13px;color:#333">[${l.fn}] ${l.msg}</div>
+      ${l.detail ? `<div style="font-size:11px;color:#888;margin-top:4px;word-break:break-all">${l.detail}</div>` : ''}
+    </div>`).join('');
+}
+
+async function resetAccount(targetUid, name) {
+  if (!confirm(`確認取消 ${name} 的帳號綁定？\n取消後需重新綁定才能使用系統。`)) return;
+  const result = await callGAS('apiResetAccount', [lineUid, targetUid]);
+  if (result.error) {
+    showToast('❌ ' + result.error);
+  } else {
+    showToast(`✅ 已取消 ${name} 的綁定`);
+    loadAccounts();
+  }
 }
 
 loadProgress();
