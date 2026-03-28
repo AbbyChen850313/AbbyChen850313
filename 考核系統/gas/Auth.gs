@@ -13,9 +13,9 @@ const COL_ACCOUNT = {
   BOUND_AT:     3,  // D 綁定時間
   STATUS:       4,  // E 狀態
   JOB_TITLE:    5,  // F 職稱（從 HR Sheet 帶入）
-  CLEAR:        6,  // G 清除帳號（checkbox）
-  PHONE:        7,  // H 電話
-  ROLE:         8,  // I 角色（系統管理員/HR/主管/同仁）
+  PHONE:        6,  // G 電話
+  ROLE:         7,  // H 角色（系統管理員/HR/主管/同仁）
+  CLEAR:        8,  // I 清除帳號（checkbox，放最後避免誤觸）
 };
 
 // ============================================================
@@ -201,10 +201,10 @@ function _upsertAccount(lineUid, displayName, name, jobTitle, phone, role) {
   }
 
   const newRow = accountSheet.getLastRow() + 1;
-  accountSheet.appendRow([name, lineUid, displayName, new Date(), '已授權', jobTitle, '', phone || '', role || '']);
+  // 欄位順序：姓名, UID, 顯示名稱, 綁定時間, 狀態, 職稱, 電話, 角色, 清除帳號
+  accountSheet.appendRow([name, lineUid, displayName, new Date(), '已授權', jobTitle, phone || '', role || '', false]);
   const checkboxCell = accountSheet.getRange(newRow, COL_ACCOUNT.CLEAR + 1);
   checkboxCell.setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
-  checkboxCell.setValue(false);
 }
 
 /**
@@ -364,7 +364,7 @@ function initAccountSheet() {
 
 /** 設定 LINE帳號 表頭（共 9 欄） */
 function _setAccountSheetHeader(sheet) {
-  const headers = ['姓名', 'LINE_UID', 'LINE顯示名稱', '綁定時間', '狀態', '職稱', '清除帳號', '電話', '角色'];
+  const headers = ['姓名', 'LINE_UID', 'LINE顯示名稱', '綁定時間', '狀態', '職稱', '電話', '角色', '清除帳號'];
   sheet.getRange(1, 1, 1, headers.length).setValues([headers])
     .setFontWeight('bold').setBackground('#4a90d9').setFontColor('#ffffff');
 }
