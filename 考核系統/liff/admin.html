@@ -22,9 +22,15 @@
 </head>
 <body>
 
-<div class="header">
-  <h1>⚙️ HR 管理後台</h1>
-  <div class="subtitle">HR 管理後台</div>
+<div class="header" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+  <div>
+    <h1>⚙️ HR 管理後台</h1>
+    <div class="subtitle">HR 管理後台</div>
+  </div>
+  <select id="mgrSelect" onchange="onMgrSelectChange(this)"
+    style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.5);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;max-width:110px">
+    <option value="">👥 主管視角</option>
+  </select>
 </div>
 
 <div class="tab-bar">
@@ -127,10 +133,13 @@
 <div class="mgr-view" id="mgrView">
   <div class="mgr-view-header">
     <button class="mgr-back-btn" onclick="closeMgrView()">←</button>
-    <div>
+    <div style="flex:1;min-width:0">
       <div class="mgr-view-name" id="mgrViewName">主管視角</div>
       <div class="mgr-view-sub" id="mgrViewSub"></div>
     </div>
+    <select id="mgrViewSelect" onchange="onMgrViewSelectChange(this)"
+      style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.5);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;max-width:110px;flex-shrink:0">
+    </select>
   </div>
   <div class="filter-bar">
     <button class="filter-btn active" onclick="filterMgrView('all',this)">全部</button>
@@ -164,6 +173,28 @@ function switchTab(tab) {
   if (tab === 'logs') loadLogs();
 }
 
+let _allManagers = [];
+
+function _populateMgrDropdowns(managers) {
+  _allManagers = managers;
+  const opts = managers.map(s => `<option value="${s.lineUid}">${s.managerName}</option>`).join('');
+  document.getElementById('mgrSelect').innerHTML = '<option value="">👥 主管視角</option>' + opts;
+  document.getElementById('mgrViewSelect').innerHTML = opts;
+}
+
+function onMgrSelectChange(sel) {
+  if (!sel.value) return;
+  const name = sel.options[sel.selectedIndex].text;
+  openMgrView(sel.value, name);
+  sel.value = ''; // reset
+}
+
+function onMgrViewSelectChange(sel) {
+  if (!sel.value) return;
+  const name = sel.options[sel.selectedIndex].text;
+  openMgrView(sel.value, name);
+}
+
 async function loadProgress() {
   const status = await callGAS('apiGetAllStatus', [lineUid]);
   if (!status || status.error) {
@@ -171,6 +202,7 @@ async function loadProgress() {
       `<div class="loading" style="color:#f44336">${(status && status.error) || '無法載入'}</div>`;
     return;
   }
+  _populateMgrDropdowns(status);
   document.getElementById('progressTable').innerHTML = status.map(s => {
     const pct = s.total > 0 ? Math.round(s.scored / s.total * 100) : 0;
     const color = pct === 100 ? '#2e7d32' : pct > 0 ? '#f57f17' : '#9e9e9e';
@@ -293,7 +325,7 @@ async function openMgrView(targetUid, managerName) {
   document.getElementById('mgrViewSub').textContent = '載入中...';
   document.getElementById('mgrViewList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
   document.getElementById('mgrView').classList.add('open');
-  // reset filter buttons
+  document.getElementById('mgrViewSelect').value = targetUid;
   document.querySelectorAll('#mgrView .filter-btn').forEach((b,i) => b.classList.toggle('active', i===0));
 
   const data = await callGAS('apiGetManagerDashboard', [lineUid, targetUid]);
