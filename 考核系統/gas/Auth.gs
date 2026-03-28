@@ -203,8 +203,17 @@ function _upsertAccount(lineUid, displayName, name, jobTitle, phone, role) {
   const newRow = accountSheet.getLastRow() + 1;
   // 欄位順序：姓名, UID, 顯示名稱, 綁定時間, 狀態, 職稱, 電話, 角色, 清除帳號
   accountSheet.appendRow([name, lineUid, displayName, new Date(), '已授權', jobTitle, phone || '', role || '', false]);
+
+  // checkbox
   const checkboxCell = accountSheet.getRange(newRow, COL_ACCOUNT.CLEAR + 1);
   checkboxCell.setDataValidation(SpreadsheetApp.newDataValidation().requireCheckbox().build());
+
+  // 角色下拉
+  const roleValidation = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['系統管理員', 'HR', '主管', '同仁'], true)
+    .setAllowInvalid(false)
+    .build();
+  accountSheet.getRange(newRow, COL_ACCOUNT.ROLE + 1).setDataValidation(roleValidation);
 }
 
 /**
