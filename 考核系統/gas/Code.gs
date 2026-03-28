@@ -459,6 +459,19 @@ function _handleLineWebhook(events) {
         }
       }
 
+    } else if (text === '建立選單') {
+      const adminInfo = getManagerInfo(uid);
+      if (!adminInfo || !adminInfo.isSysAdmin) {
+        _lineReply(replyToken, '❌ 無權限');
+      } else {
+        try {
+          setupRichMenus();
+          _lineReply(replyToken, '✅ Rich Menu 建立完成\n傳「ping」確認環境正確');
+        } catch (err) {
+          _lineReply(replyToken, '❌ 建立失敗：' + err.message);
+        }
+      }
+
     } else if (text === '啟用測試' || text === '啟用正式') {
       const adminInfo = getManagerInfo(uid);
       if (!adminInfo || !adminInfo.isSysAdmin) {
