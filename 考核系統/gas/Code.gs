@@ -417,17 +417,17 @@ function _handleLineWebhook(events) {
     const settings = getSettings();
 
     if (text === 'ping') {
-      const isTest = settings['使用測試Channel'] === true || settings['使用測試Channel'] === 'true';
+      const env = getActiveEnv();
       const reply = [
         '🤖 系統回應 OK',
-        `環境：${isTest ? '✅ 測試Channel' : '⚠️ 正式Channel'}`,
+        `環境：${env.isTest ? '✅ 測試Channel' : '⚠️ 正式Channel'}`,
         `季度：${settings['當前季度'] || '未設定'}`,
         `評分期間：${settings['評分期間描述'] || '未設定'}`,
       ].join('\n');
       _lineReply(replyToken, reply);
 
     } else if (text === '設定' || text === '綁定設定') {
-      _lineReply(replyToken, `請點以下連結進行帳號綁定：\nhttps://liff.line.me/${CONFIG.LIFF_ID_TEST}`);
+      _lineReply(replyToken, `請點以下連結進行帳號綁定：\nhttps://liff.line.me/${getActiveEnv().liffId}`);
 
     } else if (text === '主管') {
       const richMenuId = settings['RichMenu_C1'];
@@ -467,6 +467,7 @@ function _handleLineWebhook(events) {
         '',
         'ping — 確認環境狀態',
         '設定 — 取得綁定連結',
+        '取消綁定 — 解除帳號綁定',
         '更新選單 — 依角色同步圖文選單',
         '主管 / 同仁 / 重置 — 手動切換選單',
       ];
@@ -502,6 +503,21 @@ function _handleLineWebhook(events) {
         }
       }
 
+    } else if (text === '取消綁定') {
+      const accountSheet = _sheet('LINE帳號');
+      if (accountSheet) {
+        const data = accountSheet.getDataRange().getValues();
+        let deleted = false;
+        for (let i = data.length - 1; i >= 1; i--) {
+          if (data[i][1] === uid) { accountSheet.deleteRow(i + 1); deleted = true; }
+        }
+        const richMenuA = settings['RichMenu_A'];
+        if (richMenuA) _linkRichMenuToUser(uid, richMenuA);
+        _lineReply(replyToken, deleted ? '✅ 已解除帳號綁定\n如需重新綁定，請傳「設定」取得連結' : '⚠️ 找不到您的綁定資料');
+      } else {
+        _lineReply(replyToken, '❌ 系統錯誤：找不到 LINE帳號 工作表');
+      }
+
     } else if (text === '啟用測試' || text === '啟用正式') {
       const adminInfo = getManagerInfo(uid);
       if (!adminInfo || !adminInfo.isSysAdmin) {
@@ -516,11 +532,10 @@ function _handleLineWebhook(events) {
 }
 
 function _lineReply(replyToken, text) {
-  // Webhook 回覆固定用測試 channel token（webhook 本來就只接測試 channel 的訊息）
   UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
     method: 'post',
     contentType: 'application/json',
-    headers: { Authorization: `Bearer ${CONFIG.LINE_BOT_TOKEN_TEST}` },
+    headers: { Authorization: `Bearer ${getActiveEnv().botToken}` },
     payload: JSON.stringify({
       replyToken,
       messages: [{ type: 'text', text }],

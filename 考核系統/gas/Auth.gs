@@ -178,7 +178,7 @@ function _findEmployeeByIdentity(name, employeeId) {
 
 // ============================================================
 // LINE帳號 工作表操作
-// LINE帳號欄位：姓名, LINE_UID, LINE顯示名稱, 綁定時間, 狀態, 角色(職稱), 清除帳號, 電話
+// 欄位順序（9欄）：姓名, LINE_UID, LINE顯示名稱, 綁定時間, 狀態, 職稱, 電話, 角色, 清除帳號
 // ============================================================
 
 /**
@@ -249,7 +249,7 @@ function apiGetAllAccounts(callerUid) {
  */
 function apiResetAccount(hrLineUid, targetLineUid) {
   const info = getManagerInfo(hrLineUid);
-  if (!info || !info.isHR) return { error: '無權限' };
+  if (!info || (!info.isHR && !info.isSysAdmin)) return { error: '無權限' };
   if (!targetLineUid) return { error: '未提供目標 UID' };
 
   const accountSheet = _sheet('LINE帳號');
@@ -379,7 +379,7 @@ function _setAccountSheetHeader(sheet) {
 }
 
 /**
- * 設定 LINE帳號 I欄（角色）的下拉式選單
+ * 設定 LINE帳號 H欄（角色）的下拉式選單
  * 執行一次即可；新增帳號後如需補設可再執行
  */
 function setupRoleDropdown() {
@@ -391,5 +391,5 @@ function setupRoleDropdown() {
     .setAllowInvalid(false)
     .build();
   sheet.getRange(2, COL_ACCOUNT.ROLE + 1, lastRow - 1, 1).setDataValidation(roleValidation);
-  Logger.log(`✅ I欄（角色）下拉已設定（第 2～${lastRow} 列）`);
+  Logger.log(`✅ H欄（角色）下拉已設定（第 2～${lastRow} 列）`);
 }

@@ -76,6 +76,22 @@ function _quarterToDescription(quarter) {
   return `${rocYear}/${monthRanges[q] || ''}`;
 }
 
+/**
+ * 取得目前作用中的環境設定（單一入口，所有程式碼從這裡取 token/liffId）
+ * 切換環境只需改 系統設定 工作表的「使用測試Channel」即可，不需動程式碼
+ * @returns {{ isTest: boolean, botToken: string, liffId: string, label: string }}
+ */
+function getActiveEnv() {
+  const settings = getSettings();
+  const isTest = settings['使用測試Channel'] === true || settings['使用測試Channel'] === 'true';
+  return {
+    isTest,
+    botToken: isTest ? CONFIG.LINE_BOT_TOKEN_TEST : CONFIG.LINE_BOT_TOKEN,
+    liffId:   isTest ? CONFIG.LIFF_ID_TEST        : CONFIG.LIFF_ID,
+    label:    isTest ? '測試Channel' : '正式Channel',
+  };
+}
+
 /** 啟用測試 Channel（執行一次即可） */
 function enableTestChannel() {
   updateSettings({ '使用測試Channel': 'true' });
@@ -139,29 +155,33 @@ function _initPermissionSheet() {
   sheet.clearContents();
 
   const data = [
-    ['功能', '一般同仁', '主管（經理/廠長/協理/董事長）', 'HR', '說明'],
-    ['查看自己填寫的評分記錄', '❌', '✅（自己填的那份）', '✅', '主管查看自己對員工的評分草稿與送出記錄'],
-    ['對員工進行評分', '❌', '✅（負責科別）', '❌', '依主管權重表決定負責科別'],
-    ['儲存評分草稿', '❌', '✅', '❌', '截止前可反覆修改'],
-    ['查看所有主管評分進度', '❌', '❌', '✅', '管理後台 admin 頁'],
-    ['手動發送提醒通知', '❌', '❌', '✅', '對未完成評分的主管推播'],
-    ['修改系統設定', '❌', '❌', '✅', '評分期間、截止日、通知日期等'],
-    ['同步員工名單', '❌', '❌', '✅', '從 HR Sheet 讀取最新員工資料'],
-    ['匯出考核結果', '❌', '❌', '✅', '產生 Google Sheet 格式的結果表'],
-    ['查看/管理 LINE 帳號綁定', '❌', '❌', '✅（直接看 LINE帳號 工作表）', '可在 LINE帳號 工作表勾選 G欄刪除帳號'],
-    ['', '', '', '', ''],
-    ['角色判定說明', '', '', '', ''],
-    ['角色依 HR Sheet「(人工打)總表」O欄（職稱類別）決定', '', '', '', ''],
-    ['董事長、經理、廠長、協理 → 主管角色（Rich Menu C）', '', '', '', ''],
-    ['HR → HR 角色（Rich Menu C，進入後自動轉到管理後台）', '', '', '', ''],
-    ['其他 → 一般同仁（Rich Menu B）', '', '', '', ''],
-    ['未綁定 / 外部人員 → 公開選單（Rich Menu A）', '', '', '', ''],
+    ['功能', '一般同仁', '主管（經理/廠長/協理/董事長）', 'HR', '系統管理員', '說明'],
+    ['查看自己填寫的評分記錄', '❌', '✅（自己填的那份）', '✅', '✅', '主管查看自己對員工的評分草稿與送出記錄'],
+    ['對員工進行評分', '❌', '✅（負責科別）', '❌', '❌', '依主管權重表決定負責科別'],
+    ['儲存評分草稿', '❌', '✅', '❌', '❌', '截止前可反覆修改'],
+    ['查看所有主管評分進度', '❌', '❌', '✅', '✅', '管理後台 admin 頁'],
+    ['手動發送提醒通知', '❌', '❌', '✅', '✅', '對未完成評分的主管推播'],
+    ['修改系統設定', '❌', '❌', '✅', '✅', '評分期間、截止日、通知日期等'],
+    ['同步員工名單', '❌', '❌', '✅', '✅', '從 HR Sheet 讀取最新員工資料'],
+    ['匯出考核結果', '❌', '❌', '✅', '✅', '產生 Google Sheet 格式的結果表'],
+    ['查看/管理 LINE 帳號綁定', '❌', '❌', '✅', '✅', '可在 LINE帳號 工作表勾選 I欄刪除帳號'],
+    ['重置他人帳號綁定', '❌', '❌', '✅', '✅', 'apiResetAccount'],
+    ['切換測試/正式環境', '❌', '❌', '❌', '✅', 'LINE Bot 傳「啟用測試」/「啟用正式」'],
+    ['建立 Rich Menu', '❌', '❌', '❌', '✅', 'LINE Bot 傳「建立選單」'],
+    ['', '', '', '', '', ''],
+    ['角色判定說明', '', '', '', '', ''],
+    ['角色依 HR Sheet「(人工打)總表」O欄（職稱類別）決定', '', '', '', '', ''],
+    ['董事長、經理、廠長、協理 → 主管（Rich Menu C）', '', '', '', '', ''],
+    ['HR → HR 角色（Rich Menu C，進入後自動轉到管理後台）', '', '', '', '', ''],
+    ['其他 → 一般同仁（Rich Menu B）', '', '', '', '', ''],
+    ['未綁定 / 外部人員 → 公開選單（Rich Menu A）', '', '', '', '', ''],
+    ['系統管理員 → 僅可手動在 LINE帳號 H欄設定', '', '', '', '', ''],
   ];
 
-  sheet.getRange(1, 1, data.length, 5).setValues(data);
-  sheet.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#4a90d9').setFontColor('#ffffff');
-  sheet.getRange(12, 1, 1, 5).setFontWeight('bold').setBackground('#e8f4f8');
-  sheet.autoResizeColumns(1, 5);
+  sheet.getRange(1, 1, data.length, 6).setValues(data);
+  sheet.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#4a90d9').setFontColor('#ffffff');
+  sheet.getRange(15, 1, 1, 6).setFontWeight('bold').setBackground('#e8f4f8');
+  sheet.autoResizeColumns(1, 6);
 }
 
 /** 建立「系統說明」工作表 */
@@ -178,9 +198,10 @@ function _initSystemDocSheet() {
     ['LINE帳號', 'C LINE顯示名稱', '使用者在 LINE 的暱稱'],
     ['LINE帳號', 'D 綁定時間', '完成綁定的日期時間'],
     ['LINE帳號', 'E 狀態', '已授權 = 可使用系統'],
-    ['LINE帳號', 'F 角色(職稱)', '從 HR Sheet M欄（職稱）取得'],
-    ['LINE帳號', 'G 清除帳號', '勾選後執行「clearCheckedAccounts()」即可刪除'],
-    ['LINE帳號', 'H 電話', '使用者綁定時填寫的手機號碼（必填）'],
+    ['LINE帳號', 'F 職稱', '從 HR Sheet M欄（職稱）取得'],
+    ['LINE帳號', 'G 電話', '使用者綁定時填寫的手機號碼（必填）'],
+    ['LINE帳號', 'H 角色', '系統管理員／HR／主管／同仁（可手動修改）'],
+    ['LINE帳號', 'I 清除帳號', '勾選後執行「clearCheckedAccounts()」即可刪除'],
     ['', '', ''],
     ['主管權重', 'A 被評科別', '接受考核的科別（如：品管科、財務科）'],
     ['主管權重', 'B 職稱', '負責評分的主管職稱（用職稱而非姓名，人員異動時不需修改）'],
@@ -207,7 +228,7 @@ function _initSystemDocSheet() {
     ['評分記錄', 'O 加權分數', 'N × E（權重）'],
     ['評分記錄', 'P 備註', ''],
     ['評分記錄', 'Q 狀態', '草稿 / 已送出'],
-    ['評分記錄', 'R 送出時間', ''],
+    ['評分記錄', 'R 最後更新', '每次存草稿或送出都更新'],
     ['', '', ''],
     ['系統設定', '當前季度', '留空則自動依當下時間推算（如 115Q1 = 民國115年第一季）'],
     ['系統設定', '評分期間描述', '留空則自動由季度推算（如 115Q1 → 115/1~3月）'],
@@ -257,7 +278,7 @@ function _initManualSheet() {
     ['syncEmployees()', '從 HR Sheet 同步員工名單到「員工資料」', ''],
     ['setupRichMenus()', '建立 LINE Rich Menu（換圖時重新執行）', ''],
     ['setupTriggers()', '設定每日提醒排程觸發器', ''],
-    ['clearCheckedAccounts()', '刪除 LINE帳號 G欄打勾的帳號', ''],
+    ['clearCheckedAccounts()', '刪除 LINE帳號 I欄打勾的帳號', ''],
     ['setupAccountCheckboxes()', '補齊 LINE帳號 G欄的勾選框（修復用）', ''],
   ];
 

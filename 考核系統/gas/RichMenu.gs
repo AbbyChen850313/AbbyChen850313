@@ -19,18 +19,23 @@ const RICH_MENU_IMAGES = {
   C2:  '1BpXaXmOxNSj-5LJX0LUh7YtT5_48y_Mn',  // 主管第二頁（頂部150px Tab亮）
 };
 
-// ── 各按鈕連結（由 AI 團隊填入實際 URL）────────────────────
-const ACTION_URLS = {
-  官網:         'https://www.liangchun.com.tw/article.php?lang=tw&tb=5',
-  綁定帳號:     `https://liff.line.me/${CONFIG.LIFF_ID_TEST}`,
-  我要請款:     'https://TODO_請款URL',      // ← 請填入實際網址
-  查詢請款:     'https://TODO_查詢請款URL',  // ← 請填入實際網址
-  重要表單QA:   'https://TODO_表單URL',      // ← 請填入實際網址
-  公司活動報名: 'https://TODO_活動URL',      // ← 請填入實際網址
-  讚賞幣:       'https://TODO_讚賞幣URL',    // ← 請填入實際網址
-  出勤:         'https://TODO_出勤URL',      // ← 請填入實際網址
-  考核系統:     `https://liff.line.me/${CONFIG.LIFF_ID_TEST}`,
-};
+// ── 各按鈕連結────────────────────────────────────────────────
+// liffId 依目前環境動態取得（在 setupRichMenus() 呼叫時才決定，不是 load-time）
+// 其他 TODO URL 請填入實際網址
+function _getActionUrls() {
+  const liffId = getActiveEnv().liffId;
+  return {
+    官網:         'https://www.liangchun.com.tw/article.php?lang=tw&tb=5',
+    綁定帳號:     `https://liff.line.me/${liffId}`,
+    我要請款:     'https://TODO_請款URL',      // ← 請填入實際網址
+    查詢請款:     'https://TODO_查詢請款URL',  // ← 請填入實際網址
+    重要表單QA:   'https://TODO_表單URL',      // ← 請填入實際網址
+    公司活動報名: 'https://TODO_活動URL',      // ← 請填入實際網址
+    讚賞幣:       'https://TODO_讚賞幣URL',    // ← 請填入實際網址
+    出勤:         'https://TODO_出勤URL',      // ← 請填入實際網址
+    考核系統:     `https://liff.line.me/${liffId}`,
+  };
+}
 
 // ── Rich Menu Alias 名稱（Tab 切換用，不需修改）────────────
 const ALIAS_MANAGER_P1 = 'alias-manager-p1';
@@ -119,14 +124,15 @@ function switchRichMenuByRole(lineUid, role) {
 
 /** A — 雜人/未綁定（2格，全高，無 Tab） */
 function _buildMenuA() {
+  const urls = _getActionUrls();
   return {
     size: { width: 2500, height: 1686 },
     selected: true,
     name: 'menu_a_public',
     chatBarText: '選單',
     areas: [
-      _area(0, 0, 1250, 1686, { type: 'uri', uri: ACTION_URLS.官網 }),
-      _area(1250, 0, 1250, 1686, { type: 'uri', uri: ACTION_URLS.綁定帳號 }),
+      _area(0, 0, 1250, 1686, { type: 'uri', uri: urls.官網 }),
+      _area(1250, 0, 1250, 1686, { type: 'uri', uri: urls.綁定帳號 }),
     ],
   };
 }
@@ -171,7 +177,7 @@ function _buildMenuC2() {
       _area(0,    0, 1250, 150, { type: 'richmenuswitch', richMenuAliasId: ALIAS_MANAGER_P1, data: 'tab=1' }),
       _area(1250, 0, 1250, 150, { type: 'postback', data: 'tab=2' }),
       // 整塊大按鈕：考核系統
-      _area(0, 150, 2500, 1536, { type: 'uri', uri: ACTION_URLS.考核系統 }),
+      _area(0, 150, 2500, 1536, { type: 'uri', uri: _getActionUrls().考核系統 }),
     ],
   };
 }
@@ -204,13 +210,14 @@ function _sixCellAreas(startY) {
   const rowH = Math.floor(totalH / 2);
   const colW = [833, 833, 834]; // 三欄寬（總和 2500）
 
+  const urls = _getActionUrls();
   const actions = [
-    { type: 'uri', uri: ACTION_URLS.我要請款 },
-    { type: 'uri', uri: ACTION_URLS.查詢請款 },
-    { type: 'uri', uri: ACTION_URLS.重要表單QA },
-    { type: 'uri', uri: ACTION_URLS.公司活動報名 },
-    { type: 'uri', uri: ACTION_URLS.讚賞幣 },
-    { type: 'uri', uri: ACTION_URLS.出勤 },
+    { type: 'uri', uri: urls.我要請款 },
+    { type: 'uri', uri: urls.查詢請款 },
+    { type: 'uri', uri: urls.重要表單QA },
+    { type: 'uri', uri: urls.公司活動報名 },
+    { type: 'uri', uri: urls.讚賞幣 },
+    { type: 'uri', uri: urls.出勤 },
   ];
 
   const areas = [];
@@ -234,19 +241,9 @@ function _sixCellAreas(startY) {
 // LINE API 呼叫
 // ============================================================
 
-/**
- * 根據呼叫方是正式還是測試環境，回傳對應的 Bot Token
- * 測試 LIFF（2009619528-aJO34c6u）→ 測試 channel token
- * 正式 LIFF（2009611318-5UphK9JK）→ 正式 channel token
- * 判斷依據：Line帳號 中是否有對應設定，預設用正式
- */
+/** 取得目前作用中環境的 Bot Token（統一由 getActiveEnv() 決定） */
 function _getBotToken() {
-  const settings = getSettings();
-  const isTest = settings['使用測試Channel'] === true || settings['使用測試Channel'] === 'true';
-  if (!isTest) {
-    throw new Error('🚫 禁止使用正式帳號！請先在「系統設定」工作表將「使用測試Channel」設為 true，再重新執行。');
-  }
-  return CONFIG.LINE_BOT_TOKEN_TEST;
+  return getActiveEnv().botToken;
 }
 
 function _lineApiPost(path, payload) {
