@@ -210,6 +210,11 @@ function doGet(e) {
       template.lineUid = lineUid;
       template.liffId = CONFIG.LIFF_ID;
       break;
+    case 'sysadmin':
+      template = HtmlService.createTemplateFromFile('sysadmin');
+      template.lineUid = lineUid;
+      template.liffId = CONFIG.LIFF_ID;
+      break;
     case 'bind':
       template = HtmlService.createTemplateFromFile('bind');
       template.lineUid = '';
@@ -313,7 +318,9 @@ function apiGetEmployeesForManager(lineUid) {
 function apiSyncEmployees(lineUid) {
   const info = _verifyHROrSysAdmin(lineUid);
   if (info.error) return info;
-  return syncEmployees();
+  const result = syncEmployees();
+  _log('INFO', 'apiSyncEmployees', `${info.managerName} 同步員工完成`, { count: result && result.count });
+  return result;
 }
 
 function apiGetSettings() {
@@ -355,7 +362,9 @@ function apiGetAllStatus(lineUid) {
 function apiUpdateSettings(lineUid, newSettings) {
   const info = _verifyHROrSysAdmin(lineUid);
   if (info.error) return info;
-  return updateSettings(newSettings);
+  const result = updateSettings(newSettings);
+  _log('INFO', 'apiUpdateSettings', `${info.managerName} 更新系統設定`, { keys: Object.keys(newSettings || {}) });
+  return result;
 }
 
 function apiTriggerReminders(lineUid) {
@@ -480,7 +489,7 @@ function _handleLineWebhook(events) {
       if (!userInfo) {
         _lineReply(replyToken, '❌ 請先完成帳號綁定');
       } else {
-        switchRichMenuByRole(uid);
+        switchRichMenuByRole(uid, userInfo.role);
         _lineReply(replyToken, `✅ 選單已依目前角色（${userInfo.role || '同仁'}）更新`);
       }
 
@@ -489,11 +498,21 @@ function _handleLineWebhook(events) {
       if (accountSheet) {
         const data = accountSheet.getDataRange().getValues();
         let deleted = false;
+        let deletedName = '';
         for (let i = data.length - 1; i >= 1; i--) {
-          if (data[i][1] === uid) { accountSheet.deleteRow(i + 1); deleted = true; }
+          if (data[i][1] === uid) {
+            deletedName = String(data[i][0] || '');
+            accountSheet.deleteRow(i + 1);
+            deleted = true;
+          }
         }
         const richMenuA = settings['RichMenu_A'];
         if (richMenuA) _linkRichMenuToUser(uid, richMenuA);
+        if (deleted) {
+          _log('INFO', '取消綁定', `帳號已解除：${deletedName}`, { uid: '…' + uid.slice(-4) });
+        } else {
+          _log('WARN', '取消綁定', '找不到綁定資料', { uid: '…' + uid.slice(-4) });
+        }
         _lineReply(replyToken, deleted ? '✅ 已解除帳號綁定\n如需重新綁定，請傳「設定」取得連結' : '⚠️ 找不到您的綁定資料');
       } else {
         _lineReply(replyToken, '❌ 系統錯誤：找不到 LINE帳號 工作表');
@@ -507,8 +526,10 @@ function _handleLineWebhook(events) {
         try {
           setupRoleDropdown();
           setupAccountCheckboxes();
+          _log('INFO', '初始化', `${adminInfo.managerName} 執行初始化`);
           _lineReply(replyToken, '✅ 初始化完成\n- H欄（角色）下拉選單已建立\n- I欄（清除帳號）checkbox 已修正\n\n請去 Sheet 把你的帳號 H 欄設為「系統管理員」');
         } catch (err) {
+          _log('ERROR', '初始化', err.message, { stack: err.stack });
           _lineReply(replyToken, '❌ 初始化失敗：' + err.message);
         }
       }
@@ -523,8 +544,10 @@ function _handleLineWebhook(events) {
           setupRoleDropdown();
           setupAccountCheckboxes();
           fixPhoneFormat();
+          _log('INFO', '更新文件', `${adminInfo.managerName} 更新文件完成`);
           _lineReply(replyToken, '✅ 完成\n- 權限設定 / 系統說明 / 操作手冊已更新\n- H欄下拉 & I欄 checkbox 已補齊\n- G欄電話格式已修復');
         } catch (err) {
+          _log('ERROR', '更新文件', err.message, { stack: err.stack });
           _lineReply(replyToken, '❌ 失敗：' + err.message);
         }
       }
@@ -587,18 +610,23 @@ function _handleLineWebhook(events) {
  * @returns {string} 執行結果訊息
  */
 function _executePendingAction(action, uid, settings) {
+  const shortUid = '…' + uid.slice(-4);
   if (action === '啟用測試') {
     updateSettings({ '使用測試Channel': 'true' });
+    _log('INFO', '啟用測試', '已切換到測試環境', { uid: shortUid });
     return '✅ 已切換到測試環境';
   }
   if (action === '啟用正式') {
     updateSettings({ '使用測試Channel': 'false' });
+    _log('INFO', '啟用正式', '已切換到正式環境', { uid: shortUid });
     return '✅ 已切換到正式環境';
   }
   if (action === '建立選單') {
     setupRichMenus();
+    _log('INFO', '建立選單', 'Rich Menu 全部重建完成', { uid: shortUid });
     return '✅ Rich Menu 建立完成';
   }
+  _log('WARN', '_executePendingAction', `未知動作：${action}`, { uid: shortUid });
   return `⚠️ 未知動作：${action}`;
 }
 

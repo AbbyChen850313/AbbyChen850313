@@ -87,7 +87,29 @@ function setupRichMenus() {
     'RichMenu_C2': idC2,
   });
 
+  // 6. 重新連結所有已綁定使用者到對應的新選單
+  //    （避免舊個人連結蓋過新全域預設，造成使用者停在舊選單）
+  _relinkAllBoundUsers();
+
   Logger.log('=== Rich Menu 設定完成 ===');
+}
+
+/**
+ * 將「LINE帳號」表裡所有已授權使用者重新連結到對應的新選單
+ * 在 setupRichMenus() 後呼叫，確保沒有人停在舊選單上
+ */
+function _relinkAllBoundUsers() {
+  const rows = _sheetRows('LINE帳號');
+  let count = 0;
+  for (let i = 1; i < rows.length; i++) {
+    const uid    = String(rows[i][1] || '').trim();
+    const status = String(rows[i][4] || '').trim();
+    const role   = String(rows[i][7] || '').trim();
+    if (!uid || status !== '已授權') continue;
+    switchRichMenuByRole(uid, role);
+    count++;
+  }
+  Logger.log(`重新連結完成，共 ${count} 位使用者`);
 }
 
 // ============================================================
@@ -111,11 +133,12 @@ function switchRichMenuByRole(lineUid, role) {
   const richMenuId = needsManagerMenu ? settings['RichMenu_C1'] : settings['RichMenu_B'];
 
   if (!richMenuId) {
-    Logger.log('switchRichMenuByRole: 找不到 RichMenu ID，請先執行 setupRichMenus()');
+    _log('WARN', 'switchRichMenuByRole', '找不到 RichMenu ID，請先執行 setupRichMenus()', { lineUid: '…' + lineUid.slice(-4) });
     return;
   }
 
   _linkRichMenuToUser(lineUid, richMenuId);
+  _log('INFO', 'switchRichMenuByRole', `Rich Menu 已切換`, { uid: '…' + lineUid.slice(-4), role: resolvedRole, menuKey: needsManagerMenu ? 'C1' : 'B' });
 }
 
 // ============================================================
@@ -156,11 +179,12 @@ function _buildMenuC1() {
     name: 'menu_c1_manager_p1',
     chatBarText: '選單',
     areas: [
-      // Tab bar：左側 Tab1（已選中，無動作）、右側 Tab2（切換到 C-2）
-      _area(0,    0, 1250, 150, { type: 'postback', data: 'tab=1' }),
-      _area(1250, 0, 1250, 150, { type: 'richmenuswitch', richMenuAliasId: ALIAS_MANAGER_P2, data: 'tab=2' }),
-      // 六宮格內容（從 y=150 開始）
-      ..._sixCellAreas(150),
+      // Tab bar 高度 300px（手機顯示約 47px，符合觸控最小尺寸）
+      // 兩個都用 richmenuswitch，避免 postback 在部分 LINE 版本觸發瀏覽器跳轉
+      _area(0,    0, 1250, 300, { type: 'richmenuswitch', richMenuAliasId: ALIAS_MANAGER_P1, data: 'tab=1' }),
+      _area(1250, 0, 1250, 300, { type: 'richmenuswitch', richMenuAliasId: ALIAS_MANAGER_P2, data: 'tab=2' }),
+      // 六宮格內容（從 y=300 開始）
+      ..._sixCellAreas(300),
     ],
   };
 }
@@ -173,11 +197,11 @@ function _buildMenuC2() {
     name: 'menu_c2_manager_p2',
     chatBarText: '選單',
     areas: [
-      // Tab bar：左側 Tab1（切換到 C-1）、右側 Tab2（已選中，無動作）
-      _area(0,    0, 1250, 150, { type: 'richmenuswitch', richMenuAliasId: ALIAS_MANAGER_P1, data: 'tab=1' }),
-      _area(1250, 0, 1250, 150, { type: 'postback', data: 'tab=2' }),
+      // Tab bar 高度 300px（與 C-1 一致）
+      _area(0,    0, 1250, 300, { type: 'richmenuswitch', richMenuAliasId: ALIAS_MANAGER_P1, data: 'tab=1' }),
+      _area(1250, 0, 1250, 300, { type: 'richmenuswitch', richMenuAliasId: ALIAS_MANAGER_P2, data: 'tab=2' }),
       // 整塊大按鈕：考核系統
-      _area(0, 150, 2500, 1536, { type: 'uri', uri: _getActionUrls().考核系統 }),
+      _area(0, 300, 2500, 1386, { type: 'uri', uri: _getActionUrls().考核系統 }),
     ],
   };
 }
