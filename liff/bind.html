@@ -153,12 +153,11 @@ async function init() {
     document.getElementById('loadingView').style.display = 'none';
     document.getElementById('formView').style.display = 'block';
   } catch (err) {
-    // LIFF 失敗但有快取 UID → 直接顯示表單（送出時再處理）
     if (cachedUid) {
       lineUid = cachedUid;
       showForm();
     } else {
-      showError(err.message);
+      showError(`LIFF錯誤: ${err.message} | url=${location.href}`);
     }
   }
 }
