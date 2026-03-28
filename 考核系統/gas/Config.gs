@@ -254,43 +254,76 @@ function _initManualSheet() {
   if (!sheet) sheet = ss.insertSheet('操作手冊');
   sheet.clearContents();
 
+  // 4欄：步驟/函式, 操作/說明, 說明/所在檔案, (空)
   const data = [
-    ['每季 HR 操作步驟', '', ''],
-    ['步驟', '操作', '說明'],
-    ['1', '更新員工資料', '在 admin 後台「系統設定」頁按「從 HR Sheet 同步員工名單」'],
-    ['2', '設定評分期間', '在「系統設定」填入評分開始日、截止日、兩個通知時間點'],
-    ['3', '確認主管權重表', '開啟「主管權重」工作表，確認各科別的主管職稱與權重正確'],
-    ['4', '通知主管綁定帳號', '主管打開 LINE Bot，輸入姓名 + 員工編號完成帳號綁定'],
-    ['5', '評分期間開始', '主管打開考核系統 LIFF 進行評分'],
-    ['6', '發送提醒通知', '在 admin 後台「評分進度」頁按「發送提醒通知」'],
-    ['7', '評分截止後匯出', '在 admin 後台「匯出」頁選擇季度後按「匯出」'],
-    ['', '', ''],
-    ['首次部署步驟', '', ''],
-    ['步驟', '操作', '說明'],
-    ['D1', '建立所有工作表', '在 GAS 執行「initAllSheets()」'],
-    ['D2', '建立說明文件', '在 GAS 執行「initDocumentationSheets()」'],
-    ['D3', '設定 LINE Rich Menu', '在 RichMenu.gs 填入圖片 Drive ID 和按鈕 URL，執行「setupRichMenus()」'],
-    ['D4', '設定定時提醒觸發器', '在 GAS 執行「setupTriggers()」（只需執行一次）'],
-    ['', '', ''],
-    ['常用 GAS 函式', '', ''],
-    ['函式', '說明', ''],
-    ['initAllSheets()', '一鍵建立所有工作表（首次部署）', ''],
-    ['initDocumentationSheets()', '建立/更新三張說明文件工作表', ''],
-    ['syncEmployees()', '從 HR Sheet 同步員工名單到「員工資料」', ''],
-    ['setupRichMenus()', '建立 LINE Rich Menu（換圖時重新執行）', ''],
-    ['setupTriggers()', '設定每日提醒排程觸發器', ''],
-    ['clearCheckedAccounts()', '刪除 LINE帳號 I欄打勾的帳號', ''],
-    ['setupAccountCheckboxes()', '補齊 LINE帳號 G欄的勾選框（修復用）', ''],
+    ['每季 HR 操作步驟', '', '', ''],
+    ['步驟', '操作', '說明', ''],
+    ['1', '更新員工資料', '在 admin 後台「系統設定」頁按「從 HR Sheet 同步員工名單」', ''],
+    ['2', '設定評分期間', '在「系統設定」填入評分開始日、截止日、兩個通知時間點', ''],
+    ['3', '確認主管權重表', '開啟「主管權重」工作表，確認各科別的主管職稱與權重正確', ''],
+    ['4', '通知主管綁定帳號', '主管打開 LINE Bot，輸入姓名 + 員工編號完成帳號綁定', ''],
+    ['5', '評分期間開始', '主管打開考核系統 LIFF 進行評分', ''],
+    ['6', '發送提醒通知', '在 admin 後台「評分進度」頁按「發送提醒通知」', ''],
+    ['7', '評分截止後匯出', '在 admin 後台「匯出」頁選擇季度後按「匯出」', ''],
+    ['', '', '', ''],
+    ['首次部署步驟', '', '', ''],
+    ['步驟', '操作', '說明', ''],
+    ['D1', '建立所有工作表', '在 GAS 執行「initAllSheets()」', ''],
+    ['D2', '建立說明文件 & 測試清單', 'Bot 傳「更新文件」（或 GAS 執行 initDocumentationSheets()）', ''],
+    ['D3', '設定 LINE Rich Menu', 'Bot 傳「建立選單」→「ping」確認（或 GAS 執行 setupRichMenus()）', ''],
+    ['D4', '設定定時提醒觸發器', '在 GAS 執行「setupTriggers()」（只需執行一次）', ''],
+    ['', '', '', ''],
+    ['常用 GAS 函式', '', '', ''],
+    ['函式', '說明', '所在檔案', ''],
+    // Code.gs
+    ['initAllSheets()',              '一鍵建立所有工作表（首次部署）',                    'Code.gs',      ''],
+    // Config.gs
+    ['initDocumentationSheets()',    '建立/更新說明文件工作表（含測試清單）',              'Config.gs',    ''],
+    ['getSettings()',                '讀取系統設定工作表，回傳 key-value 物件',            'Config.gs',    ''],
+    ['updateSettings(newSettings)',  '更新系統設定（HR/SysAdmin 用）',                    'Config.gs',    ''],
+    ['getActiveEnv()',               '取得目前作用環境的 botToken / liffId',              'Config.gs',    ''],
+    // Auth.gs
+    ['getManagerInfo(lineUid)',      '查詢使用者完整資訊（角色/職責/isHR/isSysAdmin）',   'Auth.gs',      ''],
+    ['apiBindByIdentity(...)',       '用姓名+員工編號+電話完成 LINE 帳號綁定',             'Auth.gs',      ''],
+    ['apiResetAccount(hr, target)',  'HR/SysAdmin 強制解除他人帳號綁定',                  'Auth.gs',      ''],
+    ['clearCheckedAccounts()',       '刪除 LINE帳號 I欄勾選的帳號',                       'Auth.gs',      ''],
+    ['clearAllAccounts()',           '清除全部 LINE帳號記錄（測試用）',                   'Auth.gs',      ''],
+    ['resetAccountForTesting(uid)', '重置指定 UID 的帳號綁定（測試用）',                  'Auth.gs',      ''],
+    ['setupRoleDropdown()',          '設定 LINE帳號 H欄角色下拉選單',                     'Auth.gs',      ''],
+    ['setupAccountCheckboxes()',     '補齊 LINE帳號 I欄勾選框（修復用）',                 'Auth.gs',      ''],
+    ['fixPhoneFormat()',             '修復 G欄電話格式為文字（防止 0 被吃掉）',            'Auth.gs',      ''],
+    // Employees.gs
+    ['syncEmployees()',              '從 HR Sheet 同步員工名單到「員工資料」',             'Employees.gs', ''],
+    // RichMenu.gs
+    ['setupRichMenus()',             '建立 LINE Rich Menu（換圖時重新執行）',              'RichMenu.gs',  ''],
+    ['switchRichMenuByRole(uid)',    '依角色切換使用者的圖文選單',                         'RichMenu.gs',  ''],
+    ['clearDefaultRichMenu()',       '清除正式帳號全域預設選單（緊急修復用）',             'RichMenu.gs',  '⚠️ 用正式 token'],
+    // Notifications.gs
+    ['setupTriggers()',              '設定每日 9AM 提醒排程觸發器（部署後執行一次）',     'Notifications.gs', ''],
+    ['sendReminderToAll(quarter)',   '對所有有待評員工的主管發送 LINE 提醒',               'Notifications.gs', ''],
+    // Export.gs
+    ['exportScores(quarter)',        '匯出指定季度評分結果到新工作表',                    'Export.gs',    ''],
   ];
 
-  sheet.getRange(1, 1, data.length, 3).setValues(data);
-  sheet.getRange(1, 1, 1, 3).setFontWeight('bold').setBackground('#34a853').setFontColor('#ffffff');
-  sheet.getRange(2, 1, 1, 3).setFontWeight('bold').setBackground('#4a90d9').setFontColor('#ffffff');
-  sheet.getRange(11, 1, 1, 3).setFontWeight('bold').setBackground('#34a853').setFontColor('#ffffff');
-  sheet.getRange(12, 1, 1, 3).setFontWeight('bold').setBackground('#4a90d9').setFontColor('#ffffff');
-  sheet.getRange(18, 1, 1, 3).setFontWeight('bold').setBackground('#34a853').setFontColor('#ffffff');
-  sheet.getRange(19, 1, 1, 3).setFontWeight('bold').setBackground('#4a90d9').setFontColor('#ffffff');
-  sheet.autoResizeColumns(1, 3);
+  const COL = 4;
+  sheet.getRange(1, 1, data.length, COL).setValues(data);
+
+  // 段落標題
+  const greenRows = [1, 11, 18];
+  const blueRows  = [2, 12, 19];
+  greenRows.forEach(r => sheet.getRange(r, 1, 1, COL).setFontWeight('bold').setBackground('#34a853').setFontColor('#ffffff'));
+  blueRows.forEach(r  => sheet.getRange(r, 1, 1, COL).setFontWeight('bold').setBackground('#4a90d9').setFontColor('#ffffff'));
+
+  // 常用函式區：所在檔案欄標色
+  const fileColors = { 'Code.gs':'#e8f5e9', 'Config.gs':'#e3f2fd', 'Auth.gs':'#fce4ec',
+    'Employees.gs':'#fff8e1', 'RichMenu.gs':'#f3e5f5', 'Notifications.gs':'#e0f7fa', 'Export.gs':'#fff3e0' };
+  for (let i = 19; i < data.length; i++) {
+    const file = data[i][2];
+    if (fileColors[file]) sheet.getRange(i + 1, 3).setBackground(fileColors[file]);
+  }
+
+  sheet.autoResizeColumns(1, COL);
+  sheet.setColumnWidth(3, 140);
 }
 
 /** 建立「測試清單」工作表 — 系統管理員依序測試用 */
