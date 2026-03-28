@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>系統管理員</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    .tab-bar { display: flex; background: white; border-bottom: 1px solid #eee; padding: 0 8px; }
+    .tab-btn { flex: 1; padding: 12px 2px; border: none; background: none; font-size: 12px; color: #888; border-bottom: 2px solid transparent; cursor: pointer; }
+    .tab-btn.active { color: #06c755; border-bottom-color: #06c755; font-weight: bold; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* 模擬視角覆蓋層 */
+    .sim-view { display:none; position:fixed; inset:0; background:#f5f5f5; z-index:200; overflow-y:auto; }
+    .sim-view.open { display:block; }
+    .sim-header { background:linear-gradient(135deg,#7b1fa2,#4a148c); color:white; padding:16px; display:flex; align-items:center; gap:12px; }
+    .sim-back { background:none; border:none; color:white; font-size:22px; cursor:pointer; padding:0 4px; line-height:1; }
+    .sim-title { font-size:16px; font-weight:bold; }
+    .sim-sub { font-size:12px; opacity:.8; margin-top:2px; }
+
+    .env-badge { display:inline-block; padding:4px 12px; border-radius:20px; font-size:13px; font-weight:bold; }
+    .env-test  { background:#e8f5e9; color:#2e7d32; }
+    .env-prod  { background:#fff3e0; color:#e65100; }
+
+    .info-card { background:white; border-radius:8px; padding:14px 16px; margin-bottom:10px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
+    .info-row  { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f5f5f5; font-size:13px; }
+    .info-row:last-child { border-bottom:none; }
+    .info-label { color:#888; }
+    .info-value { font-weight:bold; color:#333; }
+  </style>
+</head>
+<body>
+
+<div class="header" style="background:linear-gradient(135deg,#7b1fa2,#4a148c)">
+  <h1>🔧 系統管理員</h1>
+  <div class="subtitle">SysAdmin 控制台</div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('status')">系統狀態</button>
+  <button class="tab-btn" onclick="switchTab('simulate')">模擬視角</button>
+  <button class="tab-btn" onclick="switchTab('accounts')">帳號管理</button>
+  <button class="tab-btn" onclick="switchTab('logs')">日誌</button>
+</div>
+
+<!-- ── 系統狀態 ── -->
+<div class="tab-content active" id="tab-status">
+  <div style="padding:8px">
+    <div id="statusContent"><div class="loading"><div class="spinner"></div>載入中...</div></div>
+  </div>
+</div>
+
+<!-- ── 模擬視角 ── -->
+<div class="tab-content" id="tab-simulate">
+  <div style="padding:8px">
+    <div class="info-card">
+      <div class="section-title" style="margin-bottom:8px">選擇要模擬的帳號</div>
+      <select id="simAccountSelect" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:14px;margin-bottom:10px">
+        <option value="">-- 請選擇帳號 --</option>
+      </select>
+      <button class="btn btn-primary" style="width:100%;padding:12px" onclick="openSimView()">
+        👁 模擬此帳號視角
+      </button>
+    </div>
+    <div style="font-size:12px;color:#aaa;text-align:center;padding:8px">
+      系統管理員可代入任何帳號角色查看對應畫面
+    </div>
+  </div>
+</div>
+
+<!-- ── 帳號管理 ── -->
+<div class="tab-content" id="tab-accounts">
+  <div style="padding:8px">
+    <div style="margin-bottom:8px">
+      <button class="btn btn-primary" style="width:100%;padding:10px" onclick="loadAccounts()">🔄 重新整理</button>
+    </div>
+    <div id="accountList"><div class="loading"><div class="spinner"></div>載入中...</div></div>
+  </div>
+</div>
+
+<!-- ── 日誌 ── -->
+<div class="tab-content" id="tab-logs">
+  <div style="padding:8px">
+    <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center">
+      <button class="btn btn-primary" style="flex:1;padding:10px" onclick="loadLogs()">🔄 重新整理</button>
+      <select id="logFilter" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:6px;font-size:13px" onchange="renderLogs()">
+        <option value="all">全部</option>
+        <option value="ERROR">ERROR</option>
+        <option value="WARN">WARN</option>
+        <option value="INFO">INFO</option>
+      </select>
+    </div>
+    <div id="logList"><div class="loading"><div class="spinner"></div>載入中...</div></div>
+  </div>
+</div>
+
+<!-- ── 模擬視角 overlay ── -->
+<div class="sim-view" id="simView">
+  <div class="sim-header">
+    <button class="sim-back" onclick="closeSimView()">←</button>
+    <div style="flex:1;min-width:0">
+      <div class="sim-title" id="simTitle">模擬視角</div>
+      <div class="sim-sub" id="simSub"></div>
+    </div>
+    <select id="simViewSwitch" onchange="switchSimAccount(this)"
+      style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.4);border-radius:6px;padding:6px 8px;font-size:12px;outline:none;max-width:120px;flex-shrink:0">
+    </select>
+  </div>
+  <div id="simContent"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const LIFF_ID = '2009611318-5UphK9JK';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
+
+const params = new URLSearchParams(location.search);
+let lineUid = decodeURIComponent(params.get('uid') || '') || localStorage.getItem('liff_uid') || '';
+
+let _allAccounts = [];
+let _logsCache   = [];
+
+function switchTab(tab) {
+  const tabs = ['status', 'simulate', 'accounts', 'logs'];
+  document.querySelectorAll('.tab-btn').forEach((btn, i) => btn.classList.toggle('active', tabs[i] === tab));
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'status')    loadStatus();
+  if (tab === 'simulate')  loadSimulateTab();
+  if (tab === 'accounts')  loadAccounts();
+  if (tab === 'logs')      loadLogs();
+}
+
+// ── 系統狀態 ─────────────────────────────────────────────────────
+
+async function loadStatus() {
+  const settings = await callGAS('apiGetSettings', []);
+  const isTest = settings['使用測試Channel'] === true || settings['使用測試Channel'] === 'true';
+  const env = isTest ? '測試 Channel' : '正式 Channel';
+  const envClass = isTest ? 'env-test' : 'env-prod';
+  document.getElementById('statusContent').innerHTML = `
+    <div class="info-card">
+      <div class="section-title" style="margin-bottom:8px">環境狀態</div>
+      <div style="text-align:center;padding:10px 0">
+        <span class="env-badge ${envClass}">${isTest ? '✅' : '⚠️'} ${env}</span>
+      </div>
+      <div style="font-size:12px;color:#aaa;text-align:center;margin-top:4px">
+        切換環境請傳 LINE Bot 關鍵字「啟用測試」或「啟用正式」→ ping
+      </div>
+    </div>
+    <div class="info-card">
+      <div class="section-title" style="margin-bottom:8px">系統設定</div>
+      ${[
+        ['當前季度',   settings['當前季度']        || '未設定'],
+        ['評分期間',   settings['評分期間描述']     || '未設定'],
+        ['評分開始日', settings['評分開始日']        || '未設定'],
+        ['評分截止日', settings['評分截止日']        || '未設定'],
+        ['通知時間點1', settings['通知時間點1']      || '未設定'],
+        ['通知時間點2', settings['通知時間點2']      || '未設定'],
+      ].map(([k, v]) => `<div class="info-row"><span class="info-label">${k}</span><span class="info-value">${v}</span></div>`).join('')}
+    </div>`;
+}
+
+// ── 模擬視角 ─────────────────────────────────────────────────────
+
+async function loadSimulateTab() {
+  const accounts = await callGAS('apiGetAllAccounts', [lineUid]);
+  if (!accounts || accounts.error) return;
+  _allAccounts = accounts;
+
+  const opts = accounts.map(a =>
+    `<option value="${a.lineUid}" data-role="${a.role || ''}" data-name="${a.name}">${a.name}（${a.role || '同仁'}）</option>`
+  ).join('');
+
+  // 主頁選單
+  document.getElementById('simAccountSelect').innerHTML = '<option value="">-- 請選擇帳號 --</option>' + opts;
+  // 覆蓋層裡的切換下拉
+  document.getElementById('simViewSwitch').innerHTML = opts;
+}
+
+async function openSimView() {
+  const sel = document.getElementById('simAccountSelect');
+  const targetUid = sel.value;
+  if (!targetUid) { showToast('請先選擇帳號'); return; }
+  const opt = sel.options[sel.selectedIndex];
+  const name = opt.dataset.name;
+  const role = opt.dataset.role;
+
+  document.getElementById('simTitle').textContent = name;
+  document.getElementById('simSub').textContent = `角色：${role || '同仁'}`;
+  document.getElementById('simContent').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
+  document.getElementById('simView').classList.add('open');
+  // 同步覆蓋層下拉的選中狀態
+  document.getElementById('simViewSwitch').value = targetUid;
+
+  if (role === 'HR' || role === '系統管理員') {
+    await _loadSimHRView(targetUid);
+  } else {
+    await _loadSimManagerView(targetUid);
+  }
+}
+
+async function _loadSimManagerView(targetUid) {
+  const data = await callGAS('apiGetManagerDashboard', [lineUid, targetUid]);
+  if (!data || data.error) {
+    document.getElementById('simContent').innerHTML =
+      `<div class="loading" style="color:#f44336">${(data && data.error) || '無法載入'}</div>`;
+    return;
+  }
+  const emps = data.employees || [];
+  const pct = data.total > 0 ? Math.round(data.scored / data.total * 100) : 0;
+  document.getElementById('simSub').textContent = `角色：主管 ｜ 已評 ${data.scored}/${data.total} 人（${pct}%）`;
+
+  if (emps.length === 0) {
+    document.getElementById('simContent').innerHTML = '<div class="loading">此主管無負責員工</div>';
+    return;
+  }
+  document.getElementById('simContent').innerHTML =
+    `<div class="employee-list">` +
+    emps.map(emp => {
+      const st = emp.scoreStatus || '未評分';
+      const badgeClass = st === '已送出' ? 'badge-done' : st === '草稿' ? 'badge-draft' : 'badge-pending';
+      const cardClass = emp.isProbation ? 'employee-card probation' : 'employee-card';
+      return `<div class="${cardClass}">
+        <div class="emp-avatar">${emp.name ? emp.name.charAt(0) : '?'}</div>
+        <div class="emp-info">
+          <div class="emp-name">${emp.name}${emp.isProbation ? '<span class="emp-badge badge-probation" style="font-size:10px;margin-left:4px">試用期</span>' : ''}</div>
+          <div class="emp-meta">${emp.section} · 年資 ${emp.tenure || '-'}</div>
+        </div>
+        <span class="emp-badge ${badgeClass}">${st}</span>
+      </div>`;
+    }).join('') +
+    `</div>`;
+}
+
+async function _loadSimHRView(targetUid) {
+  const status = await callGAS('apiGetAllStatus', [lineUid]);
+  if (!status || status.error) {
+    document.getElementById('simContent').innerHTML =
+      `<div class="loading" style="color:#f44336">${(status && status.error) || '無法載入'}</div>`;
+    return;
+  }
+  document.getElementById('simSub').textContent = `角色：HR ｜ 共 ${status.length} 位主管`;
+  document.getElementById('simContent').innerHTML =
+    `<div style="padding:8px">` +
+    status.map(s => {
+      const pct = s.total > 0 ? Math.round(s.scored / s.total * 100) : 0;
+      const color = pct === 100 ? '#2e7d32' : pct > 0 ? '#f57f17' : '#9e9e9e';
+      return `<div style="background:white;border-radius:8px;padding:12px 16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-weight:bold;font-size:15px">${s.managerName}</span>
+          <span style="font-size:13px;font-weight:bold;color:${color}">${pct}%</span>
+        </div>
+        <div style="font-size:12px;color:#888;margin-bottom:6px">已評 ${s.scored} / 共 ${s.total} 人</div>
+        <div style="height:4px;background:#f0f0f0;border-radius:2px">
+          <div style="height:100%;width:${pct}%;background:${color};border-radius:2px"></div>
+        </div>
+      </div>`;
+    }).join('') +
+    `</div>`;
+}
+
+function closeSimView() {
+  document.getElementById('simView').classList.remove('open');
+}
+
+async function switchSimAccount(sel) {
+  const targetUid = sel.value;
+  if (!targetUid) return;
+  const opt = sel.options[sel.selectedIndex];
+  const name = opt.dataset.name;
+  const role = opt.dataset.role || '';
+
+  document.getElementById('simTitle').textContent = name;
+  document.getElementById('simSub').textContent = `角色：${role || '同仁'}`;
+  document.getElementById('simContent').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
+  // 同步主頁下拉
+  document.getElementById('simAccountSelect').value = targetUid;
+
+  if (role === 'HR' || role === '系統管理員') {
+    await _loadSimHRView(targetUid);
+  } else {
+    await _loadSimManagerView(targetUid);
+  }
+}
+
+// ── 帳號管理 ─────────────────────────────────────────────────────
+
+async function loadAccounts() {
+  document.getElementById('accountList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
+  const accounts = await callGAS('apiGetAllAccounts', [lineUid]);
+  if (!accounts || accounts.error) {
+    document.getElementById('accountList').innerHTML =
+      `<div class="loading" style="color:#f44336">${(accounts && accounts.error) || '無法載入'}</div>`;
+    return;
+  }
+  if (accounts.length === 0) {
+    document.getElementById('accountList').innerHTML = '<div class="loading">尚無已綁定帳號</div>';
+    return;
+  }
+  document.getElementById('accountList').innerHTML = accounts.map(a => `
+    <div style="background:white;border-radius:8px;padding:12px 16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:bold;font-size:15px">${a.name}</div>
+          <div style="font-size:12px;color:#888;margin-top:2px">${a.role || '同仁'} ｜ ${a.phone || '未填電話'}</div>
+          <div style="font-size:11px;color:#bbb;margin-top:2px">綁定：${a.boundAt}</div>
+        </div>
+        <button class="btn btn-danger" style="flex:none;padding:8px 14px;font-size:13px"
+                onclick="resetAccount('${a.lineUid}', '${a.name}')">取消綁定</button>
+      </div>
+    </div>`).join('');
+}
+
+async function resetAccount(targetUid, name) {
+  if (!confirm(`確認取消 ${name} 的帳號綁定？`)) return;
+  const result = await callGAS('apiResetAccount', [lineUid, targetUid]);
+  if (result.error) {
+    showToast('❌ ' + result.error);
+  } else {
+    showToast(`✅ 已取消 ${name} 的綁定`);
+    loadAccounts();
+  }
+}
+
+// ── 日誌 ─────────────────────────────────────────────────────────
+
+async function loadLogs() {
+  document.getElementById('logList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
+  const logs = await callGAS('apiGetLogs', [lineUid]);
+  if (!logs || logs.error) {
+    document.getElementById('logList').innerHTML =
+      `<div class="loading" style="color:#f44336">${(logs && logs.error) || '無法載入'}</div>`;
+    return;
+  }
+  _logsCache = logs;
+  renderLogs();
+}
+
+function renderLogs() {
+  const filter = document.getElementById('logFilter').value;
+  const logs = filter === 'all' ? _logsCache : _logsCache.filter(l => l.level === filter);
+  if (logs.length === 0) {
+    document.getElementById('logList').innerHTML = '<div class="loading">無日誌記錄</div>';
+    return;
+  }
+  const levelColor = { ERROR: '#f44336', WARN: '#f57f17', INFO: '#1565c0' };
+  document.getElementById('logList').innerHTML = logs.map(l => `
+    <div style="background:white;border-radius:6px;padding:10px 12px;margin-bottom:6px;box-shadow:0 1px 3px rgba(0,0,0,0.06);border-left:3px solid ${levelColor[l.level] || '#ccc'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <span style="font-size:11px;font-weight:bold;color:${levelColor[l.level] || '#888'}">${l.level}</span>
+        <span style="font-size:11px;color:#aaa">${l.time}</span>
+      </div>
+      <div style="font-size:13px;color:#333">[${l.fn}] ${l.msg}</div>
+      ${l.detail ? `<div style="font-size:11px;color:#888;margin-top:4px;word-break:break-all">${l.detail}</div>` : ''}
+    </div>`).join('');
+}
+
+// ── 共用 ─────────────────────────────────────────────────────────
+
+function callGAS(action, args) {
+  return fetch(GAS_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, args: args || [] }),
+  }).then(r => r.json());
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+loadStatus();
+</script>
+</body>
+</html>
