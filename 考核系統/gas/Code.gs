@@ -430,11 +430,11 @@ function _handleLineWebhook(events) {
 }
 
 function _lineReply(replyToken, text) {
-  const token = _getBotToken();
+  // Webhook 回覆固定用測試 channel token（webhook 本來就只接測試 channel 的訊息）
   UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
     method: 'post',
     contentType: 'application/json',
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: `Bearer ${CONFIG.LINE_BOT_TOKEN_TEST}` },
     payload: JSON.stringify({
       replyToken,
       messages: [{ type: 'text', text }],
