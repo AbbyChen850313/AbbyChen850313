@@ -130,8 +130,9 @@ function apiBindByIdentity(lineUid, displayName, name, employeeId, phone) {
     _log('INFO', 'apiBindByIdentity', `綁定成功：${employee.name}`, { jobTitle: employee.jobTitle });
     return {
       success: true,
-      name: employee.name,
-      jobTitle: employee.jobTitle,
+      name:      employee.name,
+      jobTitle:  employee.jobTitle,
+      role,
       isManager: MANAGER_TITLE_CATEGORIES.includes(employee.titleCategory),
     };
   } catch (e) {
@@ -147,7 +148,7 @@ function apiBindByIdentity(lineUid, displayName, name, employeeId, phone) {
 function apiCheckBinding(lineUid) {
   const account = _findAccountByUid(lineUid);
   if (!account) return { bound: false };
-  return { bound: true, name: account.name, jobTitle: account.jobTitle };
+  return { bound: true, name: account.name, jobTitle: account.jobTitle, role: account.role };
 }
 
 /**

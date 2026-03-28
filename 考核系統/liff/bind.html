@@ -56,7 +56,7 @@
     <div style="font-size:56px;margin-bottom:16px">✅</div>
     <div style="font-size:18px;font-weight:bold;margin-bottom:8px">帳號已綁定</div>
     <div style="font-size:14px;color:#555;margin-bottom:24px" id="alreadyBoundName"></div>
-    <button class="btn btn-submit" style="width:80%;padding:14px" onclick="goToDashboard()">
+    <button class="btn btn-submit" style="width:80%;padding:14px" onclick="goToDashboard(_userRole)">
       進入考核系統
     </button>
   </div>
@@ -87,6 +87,7 @@ const LS_UID = 'liff_uid';
 let lineUid = '';
 let displayName = '';
 let liffReady = false;
+let _userRole = '';
 
 function showForm() {
   document.getElementById('loadingView').style.display = 'none';
@@ -111,7 +112,7 @@ async function init() {
       ]);
       if (check && check.bound) {
         lineUid = cachedUid;
-        goToDashboard();
+        goToDashboard(check.role);
         return;
       }
     } catch (_) { /* 查詢失敗就繼續走 LIFF */ }
@@ -146,7 +147,8 @@ async function init() {
     ]).catch(() => null);
 
     if (check && check.bound) {
-      goToDashboard();
+      _userRole = check.role || '';
+      goToDashboard(_userRole);
       return;
     }
 
@@ -190,12 +192,19 @@ async function doBindByIdentity() {
   document.getElementById('successName').textContent = `您好，${result.name}！`;
   document.getElementById('formView').style.display = 'none';
   document.getElementById('successView').style.display = 'block';
-  setTimeout(goToDashboard, 1500); // 1.5 秒後自動跳轉
+  setTimeout(() => goToDashboard(result.role), 1500); // 1.5 秒後自動跳轉
 }
 
-function goToDashboard() {
+function goToDashboard(role) {
   if (lineUid) localStorage.setItem('liff_uid', lineUid);
-  location.href = 'dashboard.html';
+  const uid = encodeURIComponent(lineUid);
+  if (role === '系統管理員') {
+    location.href = `sysadmin.html?uid=${uid}`;
+  } else if (role === 'HR') {
+    location.href = `admin.html?uid=${uid}`;
+  } else {
+    location.href = `dashboard.html?uid=${uid}`;
+  }
 }
 
 function callGAS(action, args) {
