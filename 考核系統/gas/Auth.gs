@@ -125,7 +125,7 @@ function apiBindByIdentity(lineUid, displayName, name, employeeId, phone) {
     const role = _deriveRole(employee.titleCategory);
     _upsertAccount(lineUid, displayName, employee.name, employee.jobTitle, phone, role);
     _updateWeightUid(employee.jobTitle, lineUid, employee.name);
-    switchRichMenuByRole(lineUid);
+    switchRichMenuByRole(lineUid, role); // 直接傳 role，省去重新查 Sheet
 
     _log('INFO', 'apiBindByIdentity', `綁定成功：${employee.name}`, { jobTitle: employee.jobTitle });
     return {

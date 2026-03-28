@@ -94,11 +94,15 @@ function setupRichMenus() {
  * @param {string} lineUid
  * @param {string} titleCategory - HR Sheet O欄的職稱類別值（如 '經理', '協理', '董事長', 'HR'）
  */
-function switchRichMenuByRole(lineUid) {
+/**
+ * @param {string} lineUid
+ * @param {string} [role] - 已知角色可直接傳入，省去重新查 Sheet（'系統管理員'|'HR'|'主管'|'同仁'）
+ */
+function switchRichMenuByRole(lineUid, role) {
   const settings = getSettings();
-  const info = getManagerInfo(lineUid);
-  // 依 LINE帳號 H欄角色判斷：系統管理員/HR/主管 → C1；同仁 → B
-  const needsManagerMenu = info && (info.isSysAdmin || info.isHR || info.role === '主管');
+  const resolvedRole = role || (getManagerInfo(lineUid) || {}).role || '';
+  // 系統管理員/HR/主管 → C1；同仁或未知 → B
+  const needsManagerMenu = ['系統管理員', 'HR', '主管'].includes(resolvedRole);
   const richMenuId = needsManagerMenu ? settings['RichMenu_C1'] : settings['RichMenu_B'];
 
   if (!richMenuId) {
