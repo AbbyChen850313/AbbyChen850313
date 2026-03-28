@@ -59,29 +59,53 @@
 const LIFF_ID = '2009611318-5UphK9JK';
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
 
+const LS_UID = 'liff_uid';
 let lineUid = '';
 let employees = [];
 let myScores = {};
 let currentFilter = 'all';
 
 async function init() {
+  // 有快取 UID → 直接載入，不等 LIFF，LIFF 在背景靜默刷新
+  const cachedUid = localStorage.getItem(LS_UID);
+  if (cachedUid) {
+    lineUid = cachedUid;
+    document.getElementById('headerSubtitle').textContent = '載入中...';
+    loadDashboard(cachedUid);   // 不 await，立刻開始
+    _refreshLiffUid();          // 背景刷新
+    return;
+  }
+  // 第一次沒快取 → 走完整 LIFF 流程
   try {
     await Promise.race([
       liff.init({ liffId: LIFF_ID }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('LIFF init timeout')), 10000)),
     ]);
-
     if (!liff.isLoggedIn()) { liff.login(); return; }
-
     const profile = await liff.getProfile();
     lineUid = profile.userId;
-
-    document.getElementById('headerSubtitle').textContent = '驗證中...';
+    localStorage.setItem(LS_UID, lineUid);
     await loadDashboard(lineUid);
-
   } catch (err) {
     showError('載入失敗：' + err.message);
   }
+}
+
+// 背景靜默取得最新 UID（不阻塞頁面）
+async function _refreshLiffUid() {
+  try {
+    await Promise.race([
+      liff.init({ liffId: LIFF_ID }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000)),
+    ]);
+    if (!liff.isLoggedIn()) return;
+    const profile = await liff.getProfile();
+    if (profile.userId !== lineUid) {
+      // LINE 帳號切換 → 清快取重載
+      localStorage.setItem(LS_UID, profile.userId);
+      location.reload();
+    }
+  } catch (_) { /* 背景失敗不影響頁面 */ }
 }
 
 async function loadDashboard(uid) {
@@ -89,12 +113,17 @@ async function loadDashboard(uid) {
     const status = await callGAS('apiGetScoreStatus', [uid]);
 
     if (status.error) {
-      if (status.error.includes('身份驗證')) { location.href = 'bind.html'; return; }
+      if (status.error.includes('身份驗證')) {
+        localStorage.removeItem(LS_UID);
+        location.href = 'bind.html';
+        return;
+      }
       showError(status.error);
       return;
     }
 
     if (status.isHR) {
+      localStorage.setItem(LS_UID, uid);
       location.href = `admin.html?uid=${encodeURIComponent(uid)}`;
       return;
     }

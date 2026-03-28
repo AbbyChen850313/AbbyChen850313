@@ -128,8 +128,7 @@ async function init() {
     }
 
     if (check.bound) {
-      // 已綁定直接跳轉，不顯示中間確認頁
-      goToDashboard();
+      goToDashboard(); // 已綁定直接跳轉
       return;
     }
     document.getElementById('loadingView').style.display = 'none';
@@ -166,9 +165,11 @@ async function doBindByIdentity() {
   document.getElementById('successName').textContent = `您好，${result.name}！`;
   document.getElementById('formView').style.display = 'none';
   document.getElementById('successView').style.display = 'block';
+  setTimeout(goToDashboard, 1500); // 1.5 秒後自動跳轉
 }
 
 function goToDashboard() {
+  if (lineUid) localStorage.setItem('liff_uid', lineUid);
   location.href = 'dashboard.html';
 }
 
