@@ -290,7 +290,7 @@ function clearCheckedAccounts() {
 }
 
 /**
- * 補齊 LINE帳號 G欄（清除帳號）的勾選框
+ * 補齊 LINE帳號 I欄（清除帳號）的勾選框
  * 用於修復已存在但未設定 checkbox 的列，執行一次即可
  */
 function setupAccountCheckboxes() {
@@ -299,7 +299,7 @@ function setupAccountCheckboxes() {
   if (lastRow < 2) return;
 
   const checkboxValidation = SpreadsheetApp.newDataValidation().requireCheckbox().build();
-  const range = sheet.getRange(2, 7, lastRow - 1, 1);
+  const range = sheet.getRange(2, COL_ACCOUNT.CLEAR + 1, lastRow - 1, 1);
   range.setDataValidation(checkboxValidation);
 
   // 空白格補 false（未勾選），已有 true/false 的不動
