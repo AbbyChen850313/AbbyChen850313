@@ -121,43 +121,42 @@ async function _refreshLiffUid() {
 
 async function loadDashboard(uid) {
   try {
-    const status = await callGAS('apiGetScoreStatus', [uid]);
+    const data = await callGAS('apiGetDashboard', [uid]);
 
-    if (status.error) {
-      if (status.error.includes('身份驗證')) {
+    if (data.error) {
+      if (data.error.includes('身份驗證')) {
         localStorage.removeItem(LS_UID);
         location.href = 'bind.html';
         return;
       }
-      showError(status.error);
+      showError(data.error);
       return;
     }
 
-    if (status.isHR) {
+    if (data.isHR) {
       localStorage.setItem(LS_UID, uid);
       location.href = `admin.html?uid=${encodeURIComponent(uid)}`;
       return;
     }
 
-    if (status.isSysAdmin) {
-      await _initSysAdminView(uid);
+    if (data.isSysAdmin) {
+      _initSysAdminView(uid, data);
       return;
     }
 
-    await _renderManagerView(uid, status);
+    _renderManagerView(data);
   } catch (err) {
     showError('載入失敗：' + err.message);
   }
 }
 
-async function _initSysAdminView(sysAdminUid) {
+function _initSysAdminView(sysAdminUid, data) {
   document.getElementById('headerSubtitle').textContent = '系統管理員';
   document.getElementById('sysadminControls').style.display = 'flex';
   document.getElementById('adminLink').href = `sysadmin.html?uid=${encodeURIComponent(sysAdminUid)}`;
 
-  const accounts = await callGAS('apiGetAllAccounts', [sysAdminUid]);
   const sel = document.getElementById('simSelect');
-  (accounts || []).forEach(a => {
+  (data.accounts || []).forEach(a => {
     const opt = document.createElement('option');
     opt.value = a.lineUid;
     opt.textContent = a.name;
@@ -179,34 +178,31 @@ async function loadAsUser(targetUid) {
   document.getElementById('employeeList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
 
   try {
-    const status = await callGAS('apiGetScoreStatus', [targetUid]);
-    if (status.error || status.isSysAdmin || status.isHR) {
+    const data = await callGAS('apiGetDashboard', [targetUid]);
+    if (data.error || data.isSysAdmin || data.isHR) {
       document.getElementById('employeeList').innerHTML =
-        `<div class="loading" style="color:#888">${status.error || '此帳號無員工清單'}</div>`;
+        `<div class="loading" style="color:#888">${data.error || '此帳號無員工清單'}</div>`;
       return;
     }
-    await _renderManagerView(targetUid, status);
+    _renderManagerView(data);
   } catch (err) {
     showError('載入失敗：' + err.message);
   }
 }
 
-async function _renderManagerView(uid, status) {
-  const [myScoresResult, settings] = await Promise.all([
-    callGAS('apiGetMyScores', [uid, status.quarter]),
-    callGAS('apiGetSettings', []),
-  ]);
-  myScores = myScoresResult || {};
-  employees = status.employees || [];
+function _renderManagerView(data) {
+  myScores = data.myScores || {};
+  employees = data.employees || [];
 
-  document.getElementById('headerSubtitle').textContent = `${status.quarter} 考核評分`;
+  document.getElementById('headerSubtitle').textContent = `${data.quarter} 考核評分`;
   document.getElementById('infoBar').style.display = 'block';
-  document.getElementById('managerName').textContent = status.managerName || '-';
+  document.getElementById('managerName').textContent = data.managerName || '-';
 
-  const pct = status.total > 0 ? Math.round(status.scored / status.total * 100) : 0;
-  document.getElementById('progressText').textContent = `${status.scored} / ${status.total} 人`;
+  const pct = data.total > 0 ? Math.round(data.scored / data.total * 100) : 0;
+  document.getElementById('progressText').textContent = `${data.scored} / ${data.total} 人`;
   document.getElementById('progressFill').style.width = pct + '%';
 
+  const settings = data.settings || {};
   document.getElementById('scoringPeriod').textContent = settings['評分期間描述'] || '-';
   const deadline = settings['評分截止日'];
   if (deadline) {

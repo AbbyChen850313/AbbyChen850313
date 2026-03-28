@@ -153,6 +153,7 @@ function doPost(e) {
       apiResetAccount,
       apiGetLogs,
       apiGetManagerDashboard,
+      apiGetDashboard,
     };
     if (!API[action]) {
       _log('WARN', 'doPost', `未知 action: ${action}`);
@@ -351,6 +352,41 @@ function apiGetScoreStatus(lineUid) {
   const status = getScoreStatus(info, getCurrentQuarter());
   status.managerName = info.managerName;
   return status;
+}
+
+/** 一次回傳儀表板所需所有資料，減少前端 API 來回次數 */
+function apiGetDashboard(lineUid) {
+  const info = _verifyManager(lineUid);
+  if (info.error) return info;
+
+  if (info.isHR) return { isHR: true };
+
+  if (info.isSysAdmin) {
+    const accounts = apiGetAllAccounts(lineUid);
+    return {
+      isSysAdmin: true,
+      managerName: info.managerName,
+      accounts: Array.isArray(accounts) ? accounts : [],
+      settings: getSettings(),
+    };
+  }
+
+  const quarter = getCurrentQuarter();
+  const status = getScoreStatus(info, quarter);
+  const myScores = getMyScores(lineUid, quarter);
+  const settings = getSettings();
+
+  return {
+    quarter: status.quarter,
+    total: status.total,
+    scored: status.scored,
+    draft: status.draft,
+    pending: status.pending,
+    employees: status.employees,
+    managerName: info.managerName,
+    myScores,
+    settings,
+  };
 }
 
 // --- Admin (HR only) ---
