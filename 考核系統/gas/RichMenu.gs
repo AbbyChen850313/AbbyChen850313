@@ -15,21 +15,21 @@
 const RICH_MENU_IMAGES = {
   A:   '1w5zK-TqxFUyN_UxGIRkVMN9MoBZJOpA4',  // 雜人/未綁定選單
   B:   '1yB-aWx8781knytIrFXHYsmU_jAJ862zq',  // 同仁選單
-  C1:  'TODO_上傳c1_tab.jpg到Drive後填入',     // 主管第一頁（頂部300px Tab亮）← 圖片在本機 C:\Users\user\richmenu-test\tmp_imgs\c1_tab.jpg
-  C2:  'TODO_上傳c2_tab.jpg到Drive後填入',     // 主管第二頁（頂部300px Tab亮）← 圖片在本機 C:\Users\user\richmenu-test\tmp_imgs\c2_tab.jpg
+  C1:  '1prP0pLQeIbbpLlpz1m0izeu4wl_M5oxu',  // 主管第一頁（頂部150px Tab亮）
+  C2:  '1BpXaXmOxNSj-5LJX0LUh7YtT5_48y_Mn',  // 主管第二頁（頂部150px Tab亮）
 };
 
 // ── 各按鈕連結（由 AI 團隊填入實際 URL）────────────────────
 const ACTION_URLS = {
   官網:         'https://www.liangchun.com.tw/article.php?lang=tw&tb=5',
-  綁定帳號:     `https://liff.line.me/${CONFIG.LIFF_ID}`,
+  綁定帳號:     `https://liff.line.me/${CONFIG.LIFF_ID_TEST}`,
   我要請款:     'https://TODO_請款URL',      // ← 請填入實際網址
   查詢請款:     'https://TODO_查詢請款URL',  // ← 請填入實際網址
   重要表單QA:   'https://TODO_表單URL',      // ← 請填入實際網址
   公司活動報名: 'https://TODO_活動URL',      // ← 請填入實際網址
   讚賞幣:       'https://TODO_讚賞幣URL',    // ← 請填入實際網址
   出勤:         'https://TODO_出勤URL',      // ← 請填入實際網址
-  考核系統:     `https://liff.line.me/${CONFIG.LIFF_ID}`,
+  考核系統:     `https://liff.line.me/${CONFIG.LIFF_ID_TEST}`,
 };
 
 // ── Rich Menu Alias 名稱（Tab 切換用，不需修改）────────────
@@ -146,10 +146,10 @@ function _buildMenuC1() {
     chatBarText: '選單',
     areas: [
       // Tab bar：左側 Tab1（已選中，無動作）、右側 Tab2（切換到 C-2）
-      _area(0,    0, 1250, 300, { type: 'postback', data: 'tab=1' }),
-      _area(1250, 0, 1250, 300, { type: 'richmenuswitch', richMenuAliasId: ALIAS_MANAGER_P2, data: 'tab=2' }),
-      // 六宮格內容（從 y=300 開始）
-      ..._sixCellAreas(300),
+      _area(0,    0, 1250, 150, { type: 'postback', data: 'tab=1' }),
+      _area(1250, 0, 1250, 150, { type: 'richmenuswitch', richMenuAliasId: ALIAS_MANAGER_P2, data: 'tab=2' }),
+      // 六宮格內容（從 y=150 開始）
+      ..._sixCellAreas(150),
     ],
   };
 }
@@ -163,10 +163,10 @@ function _buildMenuC2() {
     chatBarText: '選單',
     areas: [
       // Tab bar：左側 Tab1（切換到 C-1）、右側 Tab2（已選中，無動作）
-      _area(0,    0, 1250, 300, { type: 'richmenuswitch', richMenuAliasId: ALIAS_MANAGER_P1, data: 'tab=1' }),
-      _area(1250, 0, 1250, 300, { type: 'postback', data: 'tab=2' }),
+      _area(0,    0, 1250, 150, { type: 'richmenuswitch', richMenuAliasId: ALIAS_MANAGER_P1, data: 'tab=1' }),
+      _area(1250, 0, 1250, 150, { type: 'postback', data: 'tab=2' }),
       // 整塊大按鈕：考核系統
-      _area(0, 300, 2500, 1386, { type: 'uri', uri: ACTION_URLS.考核系統 }),
+      _area(0, 150, 2500, 1536, { type: 'uri', uri: ACTION_URLS.考核系統 }),
     ],
   };
 }

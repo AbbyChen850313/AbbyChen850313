@@ -393,18 +393,38 @@ function apiGetLogs(lineUid) {
 function _handleLineWebhook(events) {
   events.forEach(event => {
     if (event.type !== 'message' || event.message.type !== 'text') return;
-    const text = event.message.text.trim().toLowerCase();
+    const text = event.message.text.trim();
     const replyToken = event.replyToken;
+    const uid = event.source.userId;
+    const settings = getSettings();
+
     if (text === 'ping') {
-      const settings = getSettings();
       const isTest = settings['使用測試Channel'] === true || settings['使用測試Channel'] === 'true';
       const reply = [
-        `🤖 系統回應 OK`,
+        '🤖 系統回應 OK',
         `環境：${isTest ? '✅ 測試Channel' : '⚠️ 正式Channel'}`,
         `季度：${settings['當前季度'] || '未設定'}`,
         `評分期間：${settings['評分期間描述'] || '未設定'}`,
       ].join('\n');
       _lineReply(replyToken, reply);
+
+    } else if (text === '設定' || text === '綁定設定') {
+      _lineReply(replyToken, `請點以下連結進行帳號綁定：\nhttps://liff.line.me/${CONFIG.LIFF_ID_TEST}`);
+
+    } else if (text === '主管') {
+      const richMenuId = settings['RichMenu_C1'];
+      if (richMenuId) { _linkRichMenuToUser(uid, richMenuId); _lineReply(replyToken, '已切換到主管選單 (C1)'); }
+      else { _lineReply(replyToken, '尚未設定 Rich Menu，請先執行 setupRichMenus()'); }
+
+    } else if (text === '同仁') {
+      const richMenuId = settings['RichMenu_B'];
+      if (richMenuId) { _linkRichMenuToUser(uid, richMenuId); _lineReply(replyToken, '已切換到同仁選單 (B)'); }
+      else { _lineReply(replyToken, '尚未設定 Rich Menu，請先執行 setupRichMenus()'); }
+
+    } else if (text === '重置') {
+      const richMenuId = settings['RichMenu_A'];
+      if (richMenuId) { _linkRichMenuToUser(uid, richMenuId); _lineReply(replyToken, '已重置為雜人選單 (A)'); }
+      else { _lineReply(replyToken, '尚未設定 Rich Menu，請先執行 setupRichMenus()'); }
     }
   });
 }
