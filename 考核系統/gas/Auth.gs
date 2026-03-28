@@ -403,6 +403,31 @@ function _setAccountSheetHeader(sheet) {
 }
 
 /**
+ * 保護 LINE帳號 H欄（角色），只有 Spreadsheet 擁有者可編輯
+ * 防止一般使用者自行竄改角色
+ */
+function protectRoleColumn() {
+  const sheet = _sheet('LINE帳號');
+  if (!sheet) return;
+
+  // 移除此欄現有保護（避免重複）
+  sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE).forEach(p => {
+    if (p.getDescription() === 'role-column') p.remove();
+  });
+
+  const protection = sheet.getRange(1, COL_ACCOUNT.ROLE + 1, sheet.getMaxRows(), 1)
+    .protect()
+    .setDescription('role-column');
+
+  // 只保留擁有者，移除其他所有編輯者
+  protection.removeEditors(protection.getEditors());
+  // 若不是 G Suite 網域，需要 setDomainEdit(false)
+  if (protection.canDomainEdit()) protection.setDomainEdit(false);
+
+  Logger.log('✅ H欄（角色）保護已設定，僅擁有者可編輯');
+}
+
+/**
  * 設定 LINE帳號 H欄（角色）的下拉式選單
  * 執行一次即可；新增帳號後如需補設可再執行
  */

@@ -544,8 +544,9 @@ function _handleLineWebhook(events) {
           setupRoleDropdown();
           setupAccountCheckboxes();
           fixPhoneFormat();
+          protectRoleColumn();
           _log('INFO', '更新文件', `${adminInfo.managerName} 更新文件完成`);
-          _lineReply(replyToken, '✅ 完成\n- 權限設定 / 系統說明 / 操作手冊已更新\n- H欄下拉 & I欄 checkbox 已補齊\n- G欄電話格式已修復');
+          _lineReply(replyToken, '✅ 完成\n- 權限設定 / 系統說明 / 操作手冊已更新\n- H欄下拉 & I欄 checkbox 已補齊\n- G欄電話格式已修復\n- H欄（角色）保護已設定');
         } catch (err) {
           _log('ERROR', '更新文件', err.message, { stack: err.stack });
           _lineReply(replyToken, '❌ 失敗：' + err.message);
