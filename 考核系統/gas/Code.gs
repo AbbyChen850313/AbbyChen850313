@@ -459,6 +459,16 @@ function _handleLineWebhook(events) {
         }
       }
 
+    } else if (text === '更新選單') {
+      // 任何已綁定帳號都可以觸發，依目前角色更新自己的選單
+      const userInfo = getManagerInfo(uid);
+      if (!userInfo) {
+        _lineReply(replyToken, '❌ 請先完成帳號綁定');
+      } else {
+        switchRichMenuByRole(uid); // 不傳 role → 重新查 Sheet 取最新角色
+        _lineReply(replyToken, `✅ 選單已依目前角色（${userInfo.role || '同仁'}）更新`);
+      }
+
     } else if (text === '建立選單') {
       const adminInfo = getManagerInfo(uid);
       if (!adminInfo || !adminInfo.isSysAdmin) {
