@@ -1,3 +1,8 @@
+/** Apps Script API から呼ばれる初期化用ヘルパー（外部から直接呼ばない） */
+function _setupProp(key, value) {
+  PropertiesService.getScriptProperties().setProperty(key, value);
+}
+
 /**
  * Firebase.gs
  * Firestore REST API 整合
