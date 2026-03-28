@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>帳號綁定</title>
-  <link rel="stylesheet" href="styles.css">
+  <?!= include('_styles'); ?>
 </head>
 <body>
 
 <div class="header">
-  <h1>帳號綁定</h1>
+  <h1>🔗 帳號綁定</h1>
   <div class="subtitle" id="bindSubtitle">驗證您的身分</div>
 </div>
 
@@ -19,7 +19,7 @@
   <div id="loadingStep">載入 SDK...</div>
 </div>
 
-<!-- 錯誤顯示 -->
+<!-- 錯誤顯示（固定顯示，不會消失） -->
 <div id="errorView" style="display:none;margin:12px 8px;padding:14px;background:#ffebee;border-radius:8px;color:#c62828;font-size:13px">
   <strong>錯誤：</strong><span id="errorMsg"></span>
 </div>
@@ -80,13 +80,9 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const LIFF_ID = '2009611318-5UphK9JK';
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
-
-const LS_UID = 'liff_uid';
+const liffId = '<?= liffId ?>';
 let lineUid = '';
 let displayName = '';
-let liffReady = false;
 
 function showForm() {
   document.getElementById('loadingView').style.display = 'none';
@@ -100,66 +96,51 @@ function showError(msg) {
 }
 
 async function init() {
-  // 有快取 UID → 直接查綁定狀態，不等 LIFF
-  const cachedUid = localStorage.getItem(LS_UID);
-  if (cachedUid) {
-    document.getElementById('loadingStep').textContent = '查詢帳號狀態...';
+  const s = document.createElement('script');
+  s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
+  s.onerror = () => showError('LINE SDK 載入失敗，請重新整理');
+  s.onload = async () => {
     try {
-      const check = await Promise.race([
-        callGAS('apiCheckBinding', [cachedUid]),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
+      document.getElementById('loadingStep').textContent = `LIFF 初始化... (ID: ${liffId})`;
+      await Promise.race([
+        liff.init({ liffId: liffId }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`timeout | liffId=${liffId} | url=${location.href}`)), 10000)),
       ]);
-      if (check && check.bound) {
-        lineUid = cachedUid;
-        goToDashboard();
+      if (!liff.isLoggedIn()) {
+        liff.login({ redirectUri: location.href });
         return;
       }
-    } catch (_) { /* 查詢失敗就繼續走 LIFF */ }
-  }
+      document.getElementById('loadingStep').textContent = '取得身分資料...';
+      const profile = await liff.getProfile();
+      lineUid = profile.userId;
+      displayName = profile.displayName;
 
-  // 沒快取或未綁定 → 走 LIFF 流程（背景也更新 UID）
-  try {
-    document.getElementById('loadingStep').textContent = 'LIFF 初始化...';
-    await Promise.race([
-      liff.init({ liffId: LIFF_ID }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('LIFF init timeout')), 3000)),
-    ]);
+      document.getElementById('loadingStep').textContent = '查詢帳號狀態...';
+      // 確認是否已綁定（加 10 秒 timeout 避免永久轉圈）
+      let check;
+      try {
+        check = await Promise.race([
+          callGAS('apiCheckBinding', [lineUid]),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000)),
+        ]);
+      } catch (e) {
+        showForm(); // timeout 或錯誤時直接顯示表單
+        return;
+      }
 
-    if (!liff.isLoggedIn()) {
-      liff.login({ redirectUri: location.href });
-      return;
+      document.getElementById('loadingView').style.display = 'none';
+      if (check.bound) {
+        document.getElementById('alreadyBoundName').textContent =
+          `您好，${check.name}（${check.jobTitle}）`;
+        document.getElementById('alreadyBoundView').style.display = 'block';
+      } else {
+        document.getElementById('formView').style.display = 'block';
+      }
+    } catch (err) {
+      showError(err.message);
     }
-
-    const profile = await liff.getProfile();
-    lineUid = profile.userId;
-    displayName = profile.displayName;
-    liffReady = true;
-
-    // 若快取 UID 與 LIFF 不同，更新快取
-    if (lineUid !== cachedUid) localStorage.setItem(LS_UID, lineUid);
-
-    // LIFF 取得後再查一次（防止快取 UID 過期）
-    document.getElementById('loadingStep').textContent = '查詢帳號狀態...';
-    const check = await Promise.race([
-      callGAS('apiCheckBinding', [lineUid]),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
-    ]).catch(() => null);
-
-    if (check && check.bound) {
-      goToDashboard();
-      return;
-    }
-
-    document.getElementById('loadingView').style.display = 'none';
-    document.getElementById('formView').style.display = 'block';
-  } catch (err) {
-    if (cachedUid) {
-      lineUid = cachedUid;
-      showForm();
-    } else {
-      showError(`LIFF錯誤: ${err.message} | url=${location.href}`);
-    }
-  }
+  };
+  document.head.appendChild(s);
 }
 
 async function doBindByIdentity() {
@@ -170,7 +151,7 @@ async function doBindByIdentity() {
   if (!name) { showToast('請填入姓名'); return; }
   if (!employeeId) { showToast('請填入員工編號'); return; }
   if (!phone) { showToast('請填入手機號碼'); return; }
-  if (!lineUid) { showToast('LINE 身分未取得，請稍後再試'); return; }
+  if (!lineUid) { showToast('LINE 身分未取得，請重新整理'); return; }
 
   const btn = event.target;
   btn.disabled = true;
@@ -189,19 +170,17 @@ async function doBindByIdentity() {
   document.getElementById('successName').textContent = `您好，${result.name}！`;
   document.getElementById('formView').style.display = 'none';
   document.getElementById('successView').style.display = 'block';
-  setTimeout(goToDashboard, 1500); // 1.5 秒後自動跳轉
 }
 
 function goToDashboard() {
-  if (lineUid) localStorage.setItem('liff_uid', lineUid);
-  location.href = 'dashboard.html';
+  location.href = '?page=dashboard';
 }
 
-function callGAS(action, args) {
-  return fetch(GAS_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action, args: args || [] }),
-  }).then(r => r.json());
+function callGAS(fn, args) {
+  return new Promise((resolve, reject) => {
+    let runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+    runner[fn](...(args || []));
+  });
 }
 
 function showToast(msg) {
@@ -211,11 +190,7 @@ function showToast(msg) {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-const s = document.createElement('script');
-s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
-s.onerror = () => showError('LINE SDK 載入失敗，請重新整理');
-s.onload = init;
-document.head.appendChild(s);
+init();
 </script>
 </body>
 </html>

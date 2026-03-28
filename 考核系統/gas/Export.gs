@@ -9,7 +9,7 @@
  * @returns {Object} { success, url, message }
  */
 function exportScores(quarter) {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const ss = _ss();
   const recordSheet = ss.getSheetByName('評分記錄');
   const recordData = recordSheet.getDataRange().getValues();
 
@@ -84,7 +84,7 @@ function exportScores(quarter) {
  * 初始化評分項目工作表
  */
 function initScoreItemsSheet() {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const ss = _ss();
   let sheet = ss.getSheetByName('評分項目');
   if (!sheet) sheet = ss.insertSheet('評分項目');
 
@@ -113,5 +113,6 @@ function initAllSheets() {
   initWeightSheet();
   initScoreSheet();
   initScoreItemsSheet();
+  initDocumentationSheets();
   Logger.log('所有工作表初始化完成');
 }

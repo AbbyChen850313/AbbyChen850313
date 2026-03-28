@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>帳號綁定</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #f0f4f8; font-family: -apple-system, sans-serif; }
+    .wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+    .card { background: #fff; border-radius: 16px; padding: 28px 24px; width: 100%; max-width: 380px; box-shadow: 0 4px 20px rgba(0,0,0,.08); }
+
+    /* Loading */
+    #screen-loading { text-align: center; padding: 24px 0; }
+    .spinner { width: 36px; height: 36px; border: 4px solid #e0e0e0; border-top-color: #06c755; border-radius: 50%; animation: spin .8s linear infinite; margin: 0 auto 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { color: #888; font-size: 14px; }
+
+    /* Error */
+    #screen-error { text-align: center; padding: 16px 0; }
+    #error-msg { color: #e53e3e; font-size: 15px; margin-top: 8px; }
+
+    /* Main */
+    #screen-main { display: none; }
+    .user-row { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; display: none; }
+    .avatar-placeholder { width: 48px; height: 48px; border-radius: 50%; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+    .user-name { font-size: 16px; font-weight: 600; color: #2d3748; }
+
+    /* Already bound */
+    #bound-section { display: none; }
+    .bound-info { background: #f0fff4; border: 1px solid #9ae6b4; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; }
+    .bound-info p { font-size: 14px; color: #276749; margin: 2px 0; }
+
+    /* Form */
+    #form-section { }
+    .section-title { font-size: 15px; font-weight: 600; color: #2d3748; margin-bottom: 14px; }
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 13px; color: #718096; margin-bottom: 4px; }
+    .field input { width: 100%; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; font-size: 15px; color: #2d3748; outline: none; transition: border-color .2s; }
+    .field input:focus { border-color: #06c755; }
+
+    /* Buttons */
+    .btn { display: block; width: 100%; padding: 13px; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 6px; transition: opacity .2s; }
+    .btn:disabled { opacity: .5; cursor: default; }
+    .btn-green  { background: #06c755; color: #fff; }
+    .btn-gray   { background: #e2e8f0; color: #4a5568; margin-top: 10px; }
+
+    /* Message */
+    .msg { margin-top: 12px; padding: 10px 14px; border-radius: 8px; font-size: 14px; display: none; }
+    .msg.success { background: #f0fff4; color: #276749; display: block; }
+    .msg.error   { background: #fff5f5; color: #c53030; display: block; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+
+    <div id="screen-loading">
+      <div class="spinner"></div>
+      <div class="loading-text">載入中...</div>
+    </div>
+
+    <div id="screen-error" style="display:none">
+      <div class="avatar-placeholder">⚠️</div>
+      <div id="error-msg">初始化失敗，請重新開啟</div>
+    </div>
+
+    <div id="screen-main" style="display:none">
+      <div class="user-row">
+        <img id="user-avatar" class="avatar" alt="">
+        <div class="avatar-placeholder" id="user-avatar-placeholder">👤</div>
+        <div class="user-name" id="user-name"></div>
+      </div>
+
+      <!-- 已綁定 -->
+      <div id="bound-section">
+        <div class="bound-info">
+          <p>✅ 帳號已綁定</p>
+          <p id="bound-name"></p>
+          <p id="bound-role"></p>
+        </div>
+        <button class="btn btn-gray" onclick="doUnbind()">解除綁定</button>
+      </div>
+
+      <!-- 綁定表單 -->
+      <div id="form-section">
+        <div class="section-title">請輸入您的資料</div>
+        <div class="field">
+          <label>姓名</label>
+          <input type="text" id="inp-name" placeholder="請輸入真實姓名">
+        </div>
+        <div class="field">
+          <label>員工編號</label>
+          <input type="text" id="inp-eid" placeholder="請輸入員工編號">
+        </div>
+        <div class="field">
+          <label>手機號碼</label>
+          <input type="tel" id="inp-phone" placeholder="09XXXXXXXX">
+        </div>
+        <button class="btn btn-green" id="btn-bind" onclick="doBind()">確認綁定</button>
+      </div>
+
+      <div id="msg-area" class="msg"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const LIFF_ID  = '2009611318-5UphK9JK';
+const GAS_URL  = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
+
+let userId      = null;
+let displayName = null;
+
+function show(id) {
+  ['screen-loading','screen-error','screen-main'].forEach(s => {
+    document.getElementById(s).style.display = s === id ? '' : 'none';
+  });
+}
+
+function callGAS(action, params) {
+  return new Promise((resolve, reject) => {
+    const url = GAS_URL + '?action=' + action + '&' + new URLSearchParams(params);
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.timeout = 15000;
+    xhr.onload  = () => { try { resolve(JSON.parse(xhr.responseText)); } catch(e) { reject(new Error('回應格式錯誤')); } };
+    xhr.onerror   = () => reject(new Error('連線失敗'));
+    xhr.ontimeout = () => reject(new Error('連線逾時'));
+    xhr.send();
+  });
+}
+
+async function init() {
+  try {
+    await liff.init({ liffId: LIFF_ID });
+    if (!liff.isLoggedIn()) { liff.login(); return; }
+
+    const profile = await liff.getProfile();
+    userId      = profile.userId;
+    displayName = profile.displayName;
+
+    document.getElementById('user-name').textContent = displayName;
+    if (profile.pictureUrl) {
+      document.getElementById('user-avatar').src = profile.pictureUrl;
+      document.getElementById('user-avatar').style.display = 'block';
+      document.getElementById('user-avatar-placeholder').style.display = 'none';
+    }
+
+    show('screen-main');
+
+    // 背景查綁定狀態
+    callGAS('checkBinding', { uid: userId }).then(r => {
+      if (r.bound) {
+        document.getElementById('bound-name').textContent = '姓名：' + r.name;
+        document.getElementById('bound-role').textContent = '職稱：' + r.jobTitle;
+        document.getElementById('bound-section').style.display = 'block';
+        document.getElementById('form-section').style.display  = 'none';
+      }
+    }).catch(() => {});
+
+  } catch(e) {
+    document.getElementById('error-msg').textContent = e.message || '請重新開啟頁面';
+    show('screen-error');
+  }
+}
+
+async function doBind() {
+  const name  = document.getElementById('inp-name').value.trim();
+  const eid   = document.getElementById('inp-eid').value.trim();
+  const phone = document.getElementById('inp-phone').value.trim();
+  if (!name || !eid || !phone) { setMsg('error', '請填寫所有欄位'); return; }
+
+  const btn = document.getElementById('btn-bind');
+  btn.disabled = true;
+  btn.textContent = '綁定中...';
+  setMsg('', '');
+
+  try {
+    const r = await callGAS('bindByIdentity', { uid: userId, displayName, name, eid, phone });
+    if (r.success) {
+      setMsg('success', `綁定成功！${r.name}（${r.jobTitle}）`);
+      document.getElementById('bound-name').textContent = '姓名：' + r.name;
+      document.getElementById('bound-role').textContent = '職稱：' + r.jobTitle;
+      document.getElementById('bound-section').style.display = 'block';
+      document.getElementById('form-section').style.display  = 'none';
+      setTimeout(() => liff.closeWindow(), 2000);
+    } else {
+      setMsg('error', r.error || '綁定失敗，請確認資料');
+      btn.disabled = false;
+      btn.textContent = '確認綁定';
+    }
+  } catch(e) {
+    setMsg('error', '連線失敗，請重試');
+    btn.disabled = false;
+    btn.textContent = '確認綁定';
+  }
+}
+
+async function doUnbind() {
+  if (!confirm('確定要解除綁定嗎？')) return;
+  try {
+    await callGAS('unbindSelf', { uid: userId });
+    setMsg('success', '已解除綁定');
+    document.getElementById('bound-section').style.display = 'none';
+    document.getElementById('form-section').style.display  = 'block';
+    setTimeout(() => liff.closeWindow(), 1500);
+  } catch(e) {
+    setMsg('error', '解除失敗，請重試');
+  }
+}
+
+function setMsg(type, text) {
+  const el = document.getElementById('msg-area');
+  el.className = 'msg' + (type ? ' ' + type : '');
+  el.textContent = text;
+}
+
+liff.ready.then ? liff.ready.then(init) : init();
+</script>
+</body>
+</html>

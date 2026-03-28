@@ -29,11 +29,12 @@ function syncEmployees() {
   const hrSheet = hrSS.getSheetByName('(人工打)總表');
   const hrData = hrSheet.getDataRange().getValues();
 
-  const systemSS = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const systemSS = _ss();
   let empSheet = systemSS.getSheetByName('員工資料');
   if (!empSheet) empSheet = systemSS.insertSheet('員工資料');
 
   // HR Sheet「(人工打)總表」欄位對應（0-indexed）
+  const COL_EMP_ID = 2;   // C欄 = 員工編號
   const COL_NAME = 4;     // E欄 = 姓名
   const COL_DEPT = 10;    // K欄 = 部門
   const COL_SECTION = 11; // L欄 = 科別
@@ -47,6 +48,7 @@ function syncEmployees() {
     if (String(row[COL_INCLUDE]).trim() !== '算入考核') continue;
 
     employees.push([
+      row[COL_EMP_ID],    // 員工編號
       row[COL_NAME],      // 姓名
       row[COL_DEPT],      // 部門
       row[COL_SECTION],   // 科別
@@ -56,11 +58,12 @@ function syncEmployees() {
   }
 
   empSheet.clearContents();
-  empSheet.appendRow(['姓名', '部門', '科別', '到職日', '離職日']);
+  empSheet.appendRow(['員工編號', '姓名', '部門', '科別', '到職日', '離職日']);
   if (employees.length > 0) {
-    empSheet.getRange(2, 1, employees.length, 5).setValues(employees);
+    empSheet.getRange(2, 1, employees.length, 6).setValues(employees);
   }
-  empSheet.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#4a90d9').setFontColor('#ffffff');
+  empSheet.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#4a90d9').setFontColor('#ffffff');
+  empSheet.hideColumns(6); // F欄(離職日)：系統內部使用，HR 不需要看到
 
   return { success: true, count: employees.length };
 }
@@ -71,8 +74,7 @@ function syncEmployees() {
  * @returns {Array} 員工清單
  */
 function getEmployeesForManager(managerInfo) {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  const empSheet = ss.getSheetByName('員工資料');
+  const empSheet = _sheet('員工資料');
   const empData = empSheet.getDataRange().getValues();
   const settings = getSettings();
 
@@ -87,11 +89,11 @@ function getEmployeesForManager(managerInfo) {
   const result = [];
   for (let i = 1; i < empData.length; i++) {
     const row = empData[i];
-    const name = row[0];
-    const dept = row[1];
-    const section = row[2];
-    const joinDate = row[3] ? new Date(row[3]) : null;
-    const leaveDate = row[4] ? new Date(row[4]) : null;
+    const name = row[1];
+    const dept = row[2];
+    const section = row[3];
+    const joinDate = row[4] ? new Date(row[4]) : null;
+    const leaveDate = row[5] ? new Date(row[5]) : null;
 
     if (!name || !joinDate) continue;
 
@@ -181,52 +183,64 @@ function getQuarterEndDate(quarter) {
  * 初始化員工資料工作表
  */
 function initEmployeeSheet() {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const ss = _ss();
   let sheet = ss.getSheetByName('員工資料');
   if (!sheet) sheet = ss.insertSheet('員工資料');
 
   sheet.clearContents();
-  const headers = [['姓名', '部門', '科別', '到職日', '離職日']];
-  sheet.getRange(1, 1, 1, 5).setValues(headers);
-  sheet.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#4a90d9').setFontColor('#ffffff');
+  const headers = [['員工編號', '姓名', '部門', '科別', '到職日', '離職日']];
+  sheet.getRange(1, 1, 1, 6).setValues(headers);
+  sheet.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#4a90d9').setFontColor('#ffffff');
+  sheet.hideColumns(6); // F欄(離職日)：系統內部使用，HR 不需要看到
 }
 
 /**
  * 初始化主管權重工作表（並填入預設值）
+ *
+ * 欄位結構（5欄）：
+ *   A 被評科別 — 接受考核的科別
+ *   B 職稱     — 負責評分的主管職稱（用職稱作為唯一識別，人員異動時不需修改）
+ *   C 姓名     — 目前擔任該職位者姓名（主管綁定時自動填入，方便人工核對）
+ *   D LINE_UID — 主管綁定後自動填入，請勿手動修改
+ *   E 權重     — 評分佔比，同科別所有主管權重加總須 = 1.0
  */
 function initWeightSheet() {
-  const ss = SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
+  const ss = _ss();
   let sheet = ss.getSheetByName('主管權重');
   if (!sheet) sheet = ss.insertSheet('主管權重');
 
-  const headers = [['被評科別', '主管姓名', '主管LINE_UID', '權重']];
+  // [被評科別, 職稱, 姓名, LINE_UID, 權重]
+  const headers = [['被評科別', '職稱', '姓名', 'LINE_UID', '權重']];
   const defaults = [
-    ['品管科', '營運部協理', '', 0.70],
-    ['品管科', '儲運科經理', '', 0.15],
-    ['品管科', '生產科廠長', '', 0.15],
-    ['業務科', '營運部協理', '', 0.70],
-    ['業務科', '廠務部協理', '', 0.15],
-    ['業務科', '永續發展科經理', '', 0.15],
-    ['儲運科', '儲運科經理', '', 0.70],
-    ['儲運科', '廠務部協理', '', 0.15],
-    ['儲運科', '營運部協理', '', 0.15],
-    ['儲運科經理', '廠務部協理', '', 0.70],
-    ['儲運科經理', '營運部協理', '', 0.15],
-    ['儲運科經理', '永續發展科經理', '', 0.15],
-    ['生產科', '生產科廠長', '', 0.70],
-    ['生產科', '廠務部協理', '', 0.15],
-    ['生產科', '營運部協理', '', 0.15],
-    ['生產科廠長', '廠務部協理', '', 0.70],
-    ['生產科廠長', '營運部協理', '', 0.15],
-    ['生產科廠長', '永續發展科經理', '', 0.15],
-    ['財務科', '永續發展科經理', '', 0.70],
-    ['財務科', '業務人員(均分)', '', 0.30],
-    ['永續發展科', '永續發展科經理', '', 0.70],
-    ['永續發展科', '營運部協理', '', 0.30],
+    ['品管科',    '營運部協理',     '', '', 0.70],
+    ['品管科',    '儲運科經理',     '', '', 0.15],
+    ['品管科',    '生產科廠長',     '', '', 0.15],
+    ['業務部',    '營運部協理',     '', '', 0.70],
+    ['業務部',    '廠務部協理',     '', '', 0.15],
+    ['業務部',    '永續發展科經理', '', '', 0.15],
+    ['儲運科',    '儲運科經理',     '', '', 0.70],
+    ['儲運科',    '廠務部協理',     '', '', 0.15],
+    ['儲運科',    '營運部協理',     '', '', 0.15],
+    ['儲運科經理','廠務部協理',     '', '', 0.70],
+    ['儲運科經理','營運部協理',     '', '', 0.15],
+    ['儲運科經理','永續發展科經理', '', '', 0.15],
+    ['生產科',    '生產科廠長',     '', '', 0.70],
+    ['生產科',    '廠務部協理',     '', '', 0.15],
+    ['生產科',    '營運部協理',     '', '', 0.15],
+    ['生產科廠長','廠務部協理',     '', '', 0.70],
+    ['生產科廠長','營運部協理',     '', '', 0.15],
+    ['生產科廠長','永續發展科經理', '', '', 0.15],
+    ['財務科',    '永續發展科經理', '', '', 0.70],
+    ['財務科',    '業務經理',       '', '', 0.10],
+    ['財務科',    '業務副理',       '', '', 0.10],
+    ['財務科',    '財務經理',       '', '', 0.10],
+    ['永續發展科','永續發展科經理', '', '', 0.70],
+    ['永續發展科','營運部協理',     '', '', 0.30],
   ];
 
   sheet.clearContents();
-  sheet.getRange(1, 1, 1, 4).setValues(headers);
-  sheet.getRange(2, 1, defaults.length, 4).setValues(defaults);
-  sheet.getRange(1, 1, 1, 4).setFontWeight('bold').setBackground('#4a90d9').setFontColor('#ffffff');
+  sheet.getRange(1, 1, 1, 5).setValues(headers);
+  sheet.getRange(2, 1, defaults.length, 5).setValues(defaults);
+  sheet.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#4a90d9').setFontColor('#ffffff');
+  sheet.autoResizeColumns(1, 5);
 }

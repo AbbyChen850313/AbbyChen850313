@@ -107,7 +107,7 @@ async function init() {
     try {
       const check = await Promise.race([
         callGAS('apiCheckBinding', [cachedUid]),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
       ]);
       if (check && check.bound) {
         lineUid = cachedUid;
@@ -122,7 +122,7 @@ async function init() {
     document.getElementById('loadingStep').textContent = 'LIFF 初始化...';
     await Promise.race([
       liff.init({ liffId: LIFF_ID }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('LIFF init timeout')), 10000)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('LIFF init timeout')), 3000)),
     ]);
 
     if (!liff.isLoggedIn()) {
@@ -142,7 +142,7 @@ async function init() {
     document.getElementById('loadingStep').textContent = '查詢帳號狀態...';
     const check = await Promise.race([
       callGAS('apiCheckBinding', [lineUid]),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
     ]).catch(() => null);
 
     if (check && check.bound) {

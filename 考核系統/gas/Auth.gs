@@ -272,7 +272,7 @@ function clearAllAccounts() {
   const sheet = _sheet('LINE帳號');
   sheet.clearContents();
   _setAccountSheetHeader(sheet);
-  SpreadsheetApp.getUi().alert('LINE帳號 已清除');
+  Logger.log('✅ LINE帳號 已清除');
 }
 
 /** 清除 G欄勾選的帳號 */
@@ -286,7 +286,7 @@ function clearCheckedAccounts() {
       count++;
     }
   }
-  SpreadsheetApp.getUi().alert(`已清除 ${count} 筆帳號`);
+  Logger.log(`✅ 已清除 ${count} 筆帳號`);
 }
 
 /**
@@ -307,7 +307,7 @@ function setupAccountCheckboxes() {
   const corrected = values.map(([v]) => [v === true ? true : false]);
   range.setValues(corrected);
 
-  SpreadsheetApp.getUi().alert(`已為 ${lastRow - 1} 列設定勾選框`);
+  Logger.log(`✅ 已為 ${lastRow - 1} 列設定勾選框`);
 }
 
 /**
@@ -319,7 +319,7 @@ function setupAccountCheckboxes() {
  */
 function resetAccountForTesting(lineUid) {
   if (!lineUid) {
-    SpreadsheetApp.getUi().alert('請填入 LINE UID');
+    Logger.log('請填入 LINE UID');
     return;
   }
 
@@ -349,7 +349,7 @@ function resetAccountForTesting(lineUid) {
     _linkRichMenuToUser(lineUid, richMenuA);
   }
 
-  SpreadsheetApp.getUi().alert(`已重置帳號：${lineUid}`);
+  Logger.log(`✅ 已重置帳號：${lineUid}`);
 }
 
 /** 初始化 LINE帳號 工作表 */
