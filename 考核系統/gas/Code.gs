@@ -108,6 +108,13 @@ function doPost(e) {
   let action = '(unknown)';
   try {
     const body = JSON.parse(e.postData.contents);
+
+    // LINE Webhook 事件（Bot 收到訊息）
+    if (body.events) {
+      _handleLineWebhook(body.events);
+      return _jsonOut({ ok: true });
+    }
+
     action = body.action;
     const args = body.args;
     const API = {
@@ -377,4 +384,41 @@ function apiGetLogs(lineUid) {
     msg:    r[3] || '',
     detail: r[4] || '',
   }));
+}
+
+// ============================================================
+// LINE Webhook 處理
+// ============================================================
+
+function _handleLineWebhook(events) {
+  events.forEach(event => {
+    if (event.type !== 'message' || event.message.type !== 'text') return;
+    const text = event.message.text.trim().toLowerCase();
+    const replyToken = event.replyToken;
+    if (text === 'ping') {
+      const settings = getSettings();
+      const isTest = settings['使用測試Channel'] === true || settings['使用測試Channel'] === 'true';
+      const reply = [
+        `🤖 系統回應 OK`,
+        `環境：${isTest ? '✅ 測試Channel' : '⚠️ 正式Channel'}`,
+        `季度：${settings['當前季度'] || '未設定'}`,
+        `評分期間：${settings['評分期間描述'] || '未設定'}`,
+      ].join('\n');
+      _lineReply(replyToken, reply);
+    }
+  });
+}
+
+function _lineReply(replyToken, text) {
+  const token = _getBotToken();
+  UrlFetchApp.fetch('https://api.line.me/v2/bot/message/reply', {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: `Bearer ${token}` },
+    payload: JSON.stringify({
+      replyToken,
+      messages: [{ type: 'text', text }],
+    }),
+    muteHttpExceptions: true,
+  });
 }
