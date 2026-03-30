@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>考核評分系統</title>
+  <?!= include('_styles'); ?>
+</head>
+<body>
+
+<div class="header">
+  <h1>📋 考核評分系統</h1>
+  <div class="subtitle" id="headerSubtitle">載入中...</div>
+</div>
+
+<!-- 主管資訊 & 進度 -->
+<div class="info-bar" id="infoBar" style="display:none">
+  <div class="info-row">
+    <span class="info-label">主管</span>
+    <span class="info-value" id="managerName">-</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">評分期間</span>
+    <span class="info-value" id="scoringPeriod">-</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">截止日</span>
+    <span class="info-value" id="deadlineInfo">-</span>
+  </div>
+  <div>
+    <div class="info-row" style="margin-bottom:4px">
+      <span class="info-label">評分進度</span>
+      <span class="info-value" id="progressText">-</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 截止警示 -->
+<div class="deadline-warning" id="deadlineWarning" style="display:none">
+  ⚠️ <span id="deadlineMsg"></span>
+</div>
+
+<!-- 篩選器 -->
+<div class="filter-bar">
+  <button class="filter-btn active" onclick="filterEmployees('all', this)">全部</button>
+  <button class="filter-btn" onclick="filterEmployees('pending', this)">未評分</button>
+  <button class="filter-btn" onclick="filterEmployees('draft', this)">草稿</button>
+  <button class="filter-btn" onclick="filterEmployees('done', this)">已送出</button>
+  <button class="filter-btn" onclick="filterEmployees('probation', this)">試用期</button>
+</div>
+
+<!-- 員工清單 -->
+<div class="employee-list" id="employeeList">
+  <div class="loading"><div class="spinner"></div>載入員工名單...</div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+const liffId = '<?= liffId ?>';
+let lineUid = '<?= lineUid ?>';
+let employees = [];
+let myScores = {};
+let currentFilter = 'all';
+
+async function init() {
+  try {
+    await Promise.race([
+      liff.init({ liffId }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('LIFF init timeout')), 10000)),
+    ]);
+
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+
+    const profile = await liff.getProfile();
+    lineUid = profile.userId;
+
+    document.getElementById('headerSubtitle').textContent = '驗證中...';
+    await loadDashboard(lineUid);
+
+  } catch (err) {
+    showError('載入失敗：' + err.message);
+  }
+}
+
+async function loadDashboard(uid) {
+  try {
+    const status = await callGAS('apiGetScoreStatus', [uid]);
+
+    if (status.error) {
+      if (status.error.includes('身份驗證')) {
+        location.href = '?page=bind';
+        return;
+      }
+      showError(status.error);
+      return;
+    }
+
+    // HR → 轉到管理後台
+    if (status.isHR) {
+      location.href = `?page=admin&uid=${encodeURIComponent(uid)}`;
+      return;
+    }
+
+    // 並行載入評分記錄 & 系統設定
+    const [myScoresResult, settings] = await Promise.all([
+      callGAS('apiGetMyScores', [uid, status.quarter]),
+      callGAS('apiGetSettings', []),
+    ]);
+    myScores = myScoresResult || {};
+    employees = status.employees || [];
+
+    // 更新 header
+    document.getElementById('headerSubtitle').textContent = `${status.quarter} 考核評分`;
+
+    // 更新資訊欄
+    document.getElementById('infoBar').style.display = 'block';
+    document.getElementById('managerName').textContent = status.managerName || '-';
+
+    // 更新進度
+    const total = status.total;
+    const scored = status.scored;
+    const pct = total > 0 ? Math.round(scored / total * 100) : 0;
+    document.getElementById('progressText').textContent = `${scored} / ${total} 人`;
+    document.getElementById('progressFill').style.width = pct + '%';
+
+    // 更新期間 & 截止日
+    document.getElementById('scoringPeriod').textContent = settings['評分期間描述'] || '-';
+    const deadline = settings['評分截止日'];
+    if (deadline) {
+      const days = Math.ceil((new Date(deadline) - new Date()) / 86400000);
+      document.getElementById('deadlineInfo').textContent =
+        `${new Date(deadline).toLocaleDateString('zh-TW')}（剩 ${days} 天）`;
+      if (days <= 2 && days >= 0) {
+        document.getElementById('deadlineWarning').style.display = 'flex';
+        document.getElementById('deadlineMsg').textContent =
+          `截止日剩 ${days} 天，請盡快完成評分！`;
+      }
+    }
+
+    renderEmployeeList();
+
+  } catch (err) {
+    showError('載入失敗：' + err.message);
+  }
+}
+
+function renderEmployeeList() {
+  const list = document.getElementById('employeeList');
+  let filtered = employees;
+
+  if (currentFilter === 'pending') {
+    filtered = employees.filter(e => e.scoreStatus !== '已送出' && e.scoreStatus !== '草稿');
+  } else if (currentFilter === 'draft') {
+    filtered = employees.filter(e => e.scoreStatus === '草稿');
+  } else if (currentFilter === 'done') {
+    filtered = employees.filter(e => e.scoreStatus === '已送出');
+  } else if (currentFilter === 'probation') {
+    filtered = employees.filter(e => e.isProbation);
+  }
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="loading">無符合條件的員工</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(emp => {
+    const status = emp.scoreStatus || '未評分';
+    const badgeClass = status === '已送出' ? 'badge-done' :
+                       status === '草稿' ? 'badge-draft' : 'badge-pending';
+    const cardClass = emp.isProbation ? 'employee-card probation' : 'employee-card';
+    const nameChar = emp.name ? emp.name.charAt(0) : '?';
+
+    return `
+      <div class="${cardClass}" onclick="goToScore('${encodeURIComponent(emp.name)}', '${emp.section}')">
+        <div class="emp-avatar">${nameChar}</div>
+        <div class="emp-info">
+          <div class="emp-name">${emp.name}
+            ${emp.isProbation ? '<span class="emp-badge badge-probation" style="font-size:10px;margin-left:4px">試用期</span>' : ''}
+          </div>
+          <div class="emp-meta">${emp.section} · 年資 ${emp.tenure}</div>
+        </div>
+        <span class="emp-badge ${badgeClass}">${status}</span>
+      </div>`;
+  }).join('');
+}
+
+function filterEmployees(type, btn) {
+  currentFilter = type;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderEmployeeList();
+}
+
+function goToScore(encodedName, section) {
+  const name = decodeURIComponent(encodedName);
+  location.href = `?page=score&uid=${encodeURIComponent(lineUid)}&eid=${encodeURIComponent(name)}&section=${encodeURIComponent(section)}`;
+}
+
+function callGAS(fn, args) {
+  return new Promise((resolve, reject) => {
+    let runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+    runner[fn](...args);
+  });
+}
+
+function showError(msg) {
+  const list = document.getElementById('employeeList');
+  list.innerHTML = `<div class="loading" style="color:#f44336">${msg}</div>`;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// 載入 LIFF SDK
+const s = document.createElement('script');
+s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
+s.onerror = () => showError('LINE SDK 載入失敗，請重新整理');
+s.onload = init;
+document.head.appendChild(s);
+</script>
+</body>
+</html>

@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>考核評分系統</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="firebase-config.js"></script>
+  <script type="module">
+    import { initializeApp }              from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js';
+    import { getFirestore, doc, getDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js';
+    const _app = initializeApp(FIREBASE_CONFIG);
+    window._db = getFirestore(_app);
+    window._fsDoc     = (col, id)  => getDoc(doc(_db, col, id)).then(s => s.exists() ? s.data() : null);
+    window._fsCollection = (col)   => getDocs(collection(_db, col)).then(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
+    window._fsReady = true;
+    document.dispatchEvent(new Event('firebase-ready'));
+  </script>
+</head>
+<body>
+
+<div class="header" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+  <div>
+    <h1>📋 考核評分系統</h1>
+    <div class="subtitle" id="headerSubtitle">載入中...</div>
+  </div>
+  <!-- 系統管理員專用：切換查看人員 + 管理後台連結 -->
+  <div id="sysadminControls" style="display:none;flex-direction:column;align-items:flex-end;gap:6px">
+    <select id="simSelect" onchange="loadAsUser(this.value)"
+      style="background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.5);border-radius:6px;padding:5px 8px;font-size:12px;outline:none;max-width:120px">
+      <option value="">切換人員</option>
+    </select>
+    <a id="adminLink" href="sysadmin.html" style="font-size:11px;color:rgba(255,255,255,0.8);text-decoration:none">⚙️ 管理後台</a>
+  </div>
+</div>
+
+<div class="info-bar" id="infoBar" style="display:none">
+  <div class="info-row">
+    <span class="info-label">主管</span>
+    <span class="info-value" id="managerName">-</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">評分期間</span>
+    <span class="info-value" id="scoringPeriod">-</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">截止日</span>
+    <span class="info-value" id="deadlineInfo">-</span>
+  </div>
+  <div>
+    <div class="info-row" style="margin-bottom:4px">
+      <span class="info-label">評分進度</span>
+      <span class="info-value" id="progressText">-</span>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill" style="width:0%"></div>
+    </div>
+  </div>
+</div>
+
+<div class="deadline-warning" id="deadlineWarning" style="display:none">
+  ⚠️ <span id="deadlineMsg"></span>
+</div>
+
+<div class="filter-bar">
+  <button class="filter-btn active" onclick="filterEmployees('all', this)">全部</button>
+  <button class="filter-btn" onclick="filterEmployees('pending', this)">未評分</button>
+  <button class="filter-btn" onclick="filterEmployees('draft', this)">草稿</button>
+  <button class="filter-btn" onclick="filterEmployees('done', this)">已送出</button>
+  <button class="filter-btn" onclick="filterEmployees('probation', this)">試用期</button>
+</div>
+
+<div class="employee-list" id="employeeList">
+  <div class="loading"><div class="spinner"></div>載入員工名單...</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const LIFF_ID = location.pathname.includes('/test/') ? '2009619528-aJO34c6u' : '2009611318-5UphK9JK';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
+
+const LS_UID = location.pathname.includes('/test/') ? 'liff_uid_test' : 'liff_uid';
+let lineUid = '';
+let employees = [];
+let myScores = {};
+let currentFilter = 'all';
+let viewAsUid = ''; // sysadmin 正在模擬的 UID
+
+function _waitForFirebase() {
+  if (window._fsReady) return Promise.resolve();
+  return new Promise(resolve => document.addEventListener('firebase-ready', resolve, { once: true }));
+}
+
+async function init() {
+  // 有快取 UID → 直接載入，不等 LIFF，LIFF 在背景靜默刷新
+  const cachedUid = localStorage.getItem(LS_UID);
+  if (cachedUid) {
+    lineUid = cachedUid;
+    document.getElementById('headerSubtitle').textContent = '載入中...';
+    loadDashboard(cachedUid);   // 不 await，立刻開始
+    _refreshLiffUid();          // 背景刷新
+    return;
+  }
+  // 第一次沒快取 → 走完整 LIFF 流程
+  try {
+    await Promise.race([
+      liff.init({ liffId: LIFF_ID }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('LIFF init timeout')), 10000)),
+    ]);
+    if (!liff.isLoggedIn()) { liff.login(); return; }
+    const profile = await liff.getProfile();
+    lineUid = profile.userId;
+    localStorage.setItem(LS_UID, lineUid);
+    await loadDashboard(lineUid);
+  } catch (err) {
+    showError('載入失敗：' + err.message);
+  }
+}
+
+// 背景靜默取得最新 UID（不阻塞頁面）
+async function _refreshLiffUid() {
+  try {
+    await Promise.race([
+      liff.init({ liffId: LIFF_ID }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 12000)),
+    ]);
+    if (!liff.isLoggedIn()) return;
+    const profile = await liff.getProfile();
+    if (profile.userId !== lineUid) {
+      // LINE 帳號切換 → 清快取重載
+      localStorage.setItem(LS_UID, profile.userId);
+      location.reload();
+    }
+  } catch (_) { /* 背景失敗不影響頁面 */ }
+}
+
+async function loadDashboard(uid) {
+  try {
+    await _waitForFirebase();
+    // 先從 Firestore 讀帳號資料（快），確認角色
+    const account = await _fsDoc('accounts', uid);
+    if (!account) {
+      localStorage.removeItem(LS_UID);
+      location.href = 'bind.html';
+      return;
+    }
+
+    if (account.role === 'HR') {
+      localStorage.setItem(LS_UID, uid);
+      location.href = `admin.html?uid=${encodeURIComponent(uid)}`;
+      return;
+    }
+
+    // 同時讀 dashboard snapshot + settings
+    const [dashboard, settings] = await Promise.all([
+      _fsDoc('managerDashboard', uid),
+      _fsDoc('meta', 'settings'),
+    ]);
+
+    if (!dashboard) {
+      // Firestore 尚未有資料（第一次），fallback 到 GAS
+      const data = await callGAS('apiGetDashboard', [uid]);
+      if (data.error) { showError(data.error); return; }
+      if (data.isSysAdmin) { await _initSysAdminView(uid, data); return; }
+      _renderManagerView(data);
+      return;
+    }
+
+    if (account.role === '系統管理員') {
+      const accounts = await _fsCollection('accounts');
+      await _initSysAdminView(uid, { accounts: accounts.map(a => ({ ...a, lineUid: a.id })), settings });
+      return;
+    }
+
+    _renderManagerView({ ...dashboard, settings: settings || {}, myScores: {} });
+    // 背景補齊 myScores（草稿/已送出狀態）
+    _loadMyScores(uid, dashboard.quarter);
+  } catch (err) {
+    showError('載入失敗：' + err.message);
+  }
+}
+
+async function _loadMyScores(uid, quarter) {
+  try {
+    const result = await callGAS('apiGetMyScores', [uid, quarter]);
+    if (!result || result.error) return;
+    myScores = result;
+    renderEmployeeList(); // 更新評分狀態顯示
+  } catch (_) {}
+}
+
+async function _initSysAdminView(sysAdminUid, data) {
+  document.getElementById('headerSubtitle').textContent = '系統管理員';
+  document.getElementById('sysadminControls').style.display = 'flex';
+  document.getElementById('adminLink').href = `sysadmin.html?uid=${encodeURIComponent(sysAdminUid)}`;
+
+  const sel = document.getElementById('simSelect');
+  (data.accounts || [])
+    .filter(a => a.status === '已授權')
+    .forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.lineUid || a.id;
+      opt.textContent = a.name;
+      sel.appendChild(opt);
+    });
+
+  document.getElementById('employeeList').innerHTML = '<div class="loading">請選擇要切換的人員</div>';
+}
+
+async function loadAsUser(targetUid) {
+  viewAsUid = targetUid;
+  if (!targetUid) {
+    document.getElementById('infoBar').style.display = 'none';
+    document.getElementById('deadlineWarning').style.display = 'none';
+    document.getElementById('employeeList').innerHTML = '<div class="loading">請選擇要切換的人員</div>';
+    return;
+  }
+
+  document.getElementById('employeeList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
+
+  try {
+    const data = await callGAS('apiGetDashboard', [targetUid]);
+    if (data.error || data.isSysAdmin || data.isHR) {
+      document.getElementById('employeeList').innerHTML =
+        `<div class="loading" style="color:#888">${data.error || '此帳號無員工清單'}</div>`;
+      return;
+    }
+    _renderManagerView(data);
+  } catch (err) {
+    showError('載入失敗：' + err.message);
+  }
+}
+
+function _renderManagerView(data) {
+  myScores = data.myScores || {};
+  employees = data.employees || [];
+
+  document.getElementById('headerSubtitle').textContent = `${data.quarter} 考核評分`;
+  document.getElementById('infoBar').style.display = 'block';
+  document.getElementById('managerName').textContent = data.managerName || '-';
+
+  const pct = data.total > 0 ? Math.round(data.scored / data.total * 100) : 0;
+  document.getElementById('progressText').textContent = `${data.scored} / ${data.total} 人`;
+  document.getElementById('progressFill').style.width = pct + '%';
+
+  const settings = data.settings || {};
+  document.getElementById('scoringPeriod').textContent = settings['評分期間描述'] || '-';
+  const deadline = settings['評分截止日'];
+  if (deadline) {
+    const days = Math.ceil((new Date(deadline) - new Date()) / 86400000);
+    document.getElementById('deadlineInfo').textContent =
+      `${new Date(deadline).toLocaleDateString('zh-TW')}（剩 ${days} 天）`;
+    if (days <= 2 && days >= 0) {
+      document.getElementById('deadlineWarning').style.display = 'flex';
+      document.getElementById('deadlineMsg').textContent = `截止日剩 ${days} 天，請盡快完成評分！`;
+    }
+  }
+
+  renderEmployeeList();
+}
+
+function renderEmployeeList() {
+  const list = document.getElementById('employeeList');
+  let filtered = employees;
+  if (currentFilter === 'pending') filtered = employees.filter(e => e.scoreStatus !== '已送出' && e.scoreStatus !== '草稿');
+  else if (currentFilter === 'draft') filtered = employees.filter(e => e.scoreStatus === '草稿');
+  else if (currentFilter === 'done') filtered = employees.filter(e => e.scoreStatus === '已送出');
+  else if (currentFilter === 'probation') filtered = employees.filter(e => e.isProbation);
+
+  if (filtered.length === 0) { list.innerHTML = '<div class="loading">無符合條件的員工</div>'; return; }
+
+  list.innerHTML = filtered.map(emp => {
+    const st = emp.scoreStatus || '未評分';
+    const badgeClass = st === '已送出' ? 'badge-done' : st === '草稿' ? 'badge-draft' : 'badge-pending';
+    const cardClass = emp.isProbation ? 'employee-card probation' : 'employee-card';
+    return `
+      <div class="${cardClass}" onclick="goToScore('${encodeURIComponent(emp.name)}','${encodeURIComponent(emp.section)}')">
+        <div class="emp-avatar">${emp.name ? emp.name.charAt(0) : '?'}</div>
+        <div class="emp-info">
+          <div class="emp-name">${emp.name}
+            ${emp.isProbation ? '<span class="emp-badge badge-probation" style="font-size:10px;margin-left:4px">試用期</span>' : ''}
+          </div>
+          <div class="emp-meta">${emp.section} · 年資 ${emp.tenure}</div>
+        </div>
+        <span class="emp-badge ${badgeClass}">${st}</span>
+      </div>`;
+  }).join('');
+}
+
+function filterEmployees(type, btn) {
+  currentFilter = type;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderEmployeeList();
+}
+
+function goToScore(encodedName, encodedSection) {
+  const uid = viewAsUid || lineUid;
+  location.href = `score.html?uid=${encodeURIComponent(uid)}&eid=${encodedName}&section=${encodedSection}`;
+}
+
+function callGAS(action, args) {
+  return fetch(GAS_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, args: args || [] }),
+  }).then(r => r.json());
+}
+
+function showError(msg) {
+  document.getElementById('employeeList').innerHTML = `<div class="loading" style="color:#f44336">${msg}</div>`;
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+const s = document.createElement('script');
+s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
+s.onerror = () => showError('LINE SDK 載入失敗，請重新整理');
+s.onload = init;
+document.head.appendChild(s);
+</script>
+</body>
+</html>
