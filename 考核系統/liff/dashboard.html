@@ -11,8 +11,10 @@
     import { getFirestore, doc, getDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js';
     const _app = initializeApp(FIREBASE_CONFIG);
     window._db = getFirestore(_app);
-    window._fsDoc     = (col, id)  => getDoc(doc(_app, col, id)).then(s => s.exists() ? s.data() : null);
-    window._fsCollection = (col)   => getDocs(collection(_app, col)).then(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
+    window._fsDoc     = (col, id)  => getDoc(doc(_db, col, id)).then(s => s.exists() ? s.data() : null);
+    window._fsCollection = (col)   => getDocs(collection(_db, col)).then(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
+    window._fsReady = true;
+    document.dispatchEvent(new Event('firebase-ready'));
   </script>
 </head>
 <body>
