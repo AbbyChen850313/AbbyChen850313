@@ -87,6 +87,11 @@ let myScores = {};
 let currentFilter = 'all';
 let viewAsUid = ''; // sysadmin 正在模擬的 UID
 
+function _waitForFirebase() {
+  if (window._fsReady) return Promise.resolve();
+  return new Promise(resolve => document.addEventListener('firebase-ready', resolve, { once: true }));
+}
+
 async function init() {
   // 有快取 UID → 直接載入，不等 LIFF，LIFF 在背景靜默刷新
   const cachedUid = localStorage.getItem(LS_UID);
@@ -132,6 +137,7 @@ async function _refreshLiffUid() {
 
 async function loadDashboard(uid) {
   try {
+    await _waitForFirebase();
     // 先從 Firestore 讀帳號資料（快），確認角色
     const account = await _fsDoc('accounts', uid);
     if (!account) {
