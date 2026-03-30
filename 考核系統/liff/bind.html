@@ -84,9 +84,10 @@ const LIFF_ID_PROD = '2009611318-5UphK9JK';
 const LIFF_ID_TEST = '2009619528-aJO34c6u';
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
 
-// 動態判斷環境（liff.init 後由 liff.id 決定）
-let IS_TEST  = false;
-let LS_UID   = 'liff_uid';
+// 從 URL 路徑立即判斷環境（不等 liff.init，確保快取 key 正確）
+const IS_TEST = location.pathname.includes('/test/');
+const LS_UID  = IS_TEST ? 'liff_uid_test' : 'liff_uid';
+const LIFF_ID = IS_TEST ? LIFF_ID_TEST : LIFF_ID_PROD;
 let lineUid = '';
 let displayName = '';
 let liffReady = false;
@@ -125,13 +126,9 @@ async function init() {
   try {
     document.getElementById('loadingStep').textContent = 'LIFF 初始化...';
     await Promise.race([
-      liff.init({ liffId: LIFF_ID_PROD }),
+      liff.init({ liffId: LIFF_ID }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('LIFF init timeout')), 10000)),
     ]);
-
-    // init 後由 liff.id 判斷實際環境
-    IS_TEST = (liff.id === LIFF_ID_TEST);
-    LS_UID  = IS_TEST ? 'liff_uid_test' : 'liff_uid';
 
     if (!liff.isLoggedIn()) {
       liff.login({ redirectUri: location.href });
