@@ -133,13 +133,6 @@ function doPost(e) {
       return _jsonOut({ ok: true });
     }
 
-    // 一次性初始化端點（設完 FIREBASE_SA 後此 block 自動失效）
-    if (body.action === '_bootstrapSA' && body.secret === 'linchun-hr-setup-2026') {
-      PropertiesService.getScriptProperties().setProperty('FIREBASE_SA', body.sa);
-      if (body.runSync) syncAllToFirebase();
-      return _jsonOut({ ok: true });
-    }
-
     action = body.action;
     const args = body.args;
     const API = {
