@@ -118,7 +118,7 @@ const LIFF_ID = '2009611318-5UphK9JK';
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
 
 const params = new URLSearchParams(location.search);
-let lineUid = decodeURIComponent(params.get('uid') || '') || localStorage.getItem('liff_uid') || '';
+let lineUid = decodeURIComponent(params.get('uid') || '') || localStorage.getItem('liff_uid_test') || '';
 
 let _allAccounts = [];
 let _logsCache   = [];
