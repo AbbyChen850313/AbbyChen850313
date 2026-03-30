@@ -87,7 +87,13 @@ function _findResponsibilities(lineUid, jobTitle) {
  * @param {string} titleCategory
  * @returns {'HR'|'主管'|'同仁'}
  */
-function _deriveRole(titleCategory) {
+function _deriveRole(titleCategory, employeeId) {
+  // 系統設定「系統管理員員工編號」優先判定（逗號分隔多筆）
+  if (employeeId) {
+    const sysAdminIds = String(getSettings()['系統管理員員工編號'] || '')
+      .split(',').map(s => s.trim()).filter(Boolean);
+    if (sysAdminIds.includes(employeeId)) return '系統管理員';
+  }
   if (titleCategory === 'HR') return 'HR';
   if (MANAGER_TITLE_CATEGORIES.includes(titleCategory)) return '主管';
   return '同仁';
@@ -125,11 +131,11 @@ function apiBindByIdentity(lineUid, displayName, name, employeeId, phone, isTest
     const employee = _findEmployeeByIdentity(name, employeeId);
     if (!employee) return { error: '查無此員工，請確認姓名與員工編號' };
 
-    const role = _deriveRole(employee.titleCategory);
+    const role = _deriveRole(employee.titleCategory, employee.employeeId);
 
     if (isTest) {
       // 測試環境：優先寫入同名正式帳號的 TEST_UID 欄；找不到就直接建新帳號
-      const linked = _linkTestUid(employee.name, lineUid);
+      const linked = _linkTestUid(employee.name, lineUid, role);
       if (!linked) {
         _upsertAccount(lineUid, displayName, employee.name, employee.jobTitle, phone, role);
         _updateWeightUid(employee.jobTitle, lineUid, employee.name);
@@ -159,15 +165,16 @@ function apiBindByIdentity(lineUid, displayName, name, employeeId, phone, isTest
   }
 }
 
-/** 找到同姓名的正式帳號，把測試 UID 寫入 J 欄 */
-function _linkTestUid(name, testUid) {
+/** 找到同姓名的正式帳號，把測試 UID 寫入 J 欄，同時更新角色 */
+function _linkTestUid(name, testUid, newRole) {
   const accountSheet = _sheet('LINE帳號');
   const rows = _sheetRows('LINE帳號');
   for (let i = 1; i < rows.length; i++) {
     const rowName = String(rows[i][COL_ACCOUNT.NAME] || '').trim();
     if (rowName === name) {
       accountSheet.getRange(i + 1, COL_ACCOUNT.TEST_UID + 1).setValue(testUid);
-      return { role: String(rows[i][COL_ACCOUNT.ROLE] || '').trim() };
+      if (newRole) accountSheet.getRange(i + 1, COL_ACCOUNT.ROLE + 1).setValue(newRole);
+      return { role: newRole || String(rows[i][COL_ACCOUNT.ROLE] || '').trim() };
     }
   }
   return null;
@@ -216,7 +223,7 @@ function _findEmployeeByIdentity(name, employeeId) {
 
 /**
  * 新增或更新 LINE帳號 紀錄
- * @param {string} role - 'HR'|'主管'|'同仁'（系統管理員只能手動在 Sheet 設定）
+ * @param {string} role - 'HR'|'主管'|'同仁'|'系統管理員'（由 _deriveRole 判定）
  */
 function _upsertAccount(lineUid, displayName, name, jobTitle, phone, role) {
   const accountSheet = _sheet('LINE帳號');
