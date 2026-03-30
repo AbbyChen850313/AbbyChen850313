@@ -13,6 +13,8 @@
     window._db = getFirestore(_app);
     window._fsDoc     = (col, id)  => getDoc(doc(_app, col, id)).then(s => s.exists() ? s.data() : null);
     window._fsCollection = (col)   => getDocs(collection(_app, col)).then(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
+    window._fsReady = true;
+    document.dispatchEvent(new Event('firebase-ready'));
   </script>
 </head>
 <body>
@@ -81,6 +83,11 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyW
 const LS_UID = 'liff_uid';
 let lineUid = '';
 let employees = [];
+
+function _waitForFirebase() {
+  if (window._fsReady) return Promise.resolve();
+  return new Promise(resolve => document.addEventListener('firebase-ready', resolve, { once: true }));
+}
 let myScores = {};
 let currentFilter = 'all';
 let viewAsUid = ''; // sysadmin 正在模擬的 UID
@@ -130,6 +137,7 @@ async function _refreshLiffUid() {
 
 async function loadDashboard(uid) {
   try {
+    await _waitForFirebase();
     // 先從 Firestore 讀帳號資料（快），確認角色
     const account = await _fsDoc('accounts', uid);
     if (!account) {
