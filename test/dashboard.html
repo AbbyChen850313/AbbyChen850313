@@ -77,17 +77,12 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const LIFF_ID = '2009619528-aJO34c6u';
+const LIFF_ID = location.pathname.includes('/test/') ? '2009619528-aJO34c6u' : '2009611318-5UphK9JK';
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
 
-const LS_UID = 'liff_uid_test';
+const LS_UID = location.pathname.includes('/test/') ? 'liff_uid_test' : 'liff_uid';
 let lineUid = '';
 let employees = [];
-
-function _waitForFirebase() {
-  if (window._fsReady) return Promise.resolve();
-  return new Promise(resolve => document.addEventListener('firebase-ready', resolve, { once: true }));
-}
 let myScores = {};
 let currentFilter = 'all';
 let viewAsUid = ''; // sysadmin 正在模擬的 UID
@@ -137,7 +132,6 @@ async function _refreshLiffUid() {
 
 async function loadDashboard(uid) {
   try {
-    await _waitForFirebase();
     // 先從 Firestore 讀帳號資料（快），確認角色
     const account = await _fsDoc('accounts', uid);
     if (!account) {
