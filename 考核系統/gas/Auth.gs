@@ -125,16 +125,21 @@ function apiBindByIdentity(lineUid, displayName, name, employeeId, phone, isTest
     const employee = _findEmployeeByIdentity(name, employeeId);
     if (!employee) return { error: '查無此員工，請確認姓名與員工編號' };
 
+    const role = _deriveRole(employee.titleCategory);
+
     if (isTest) {
-      // 測試環境：把 lineUid 寫入同名正式帳號的 TEST_UID 欄，不另開新行
+      // 測試環境：優先寫入同名正式帳號的 TEST_UID 欄；找不到就直接建新帳號
       const linked = _linkTestUid(employee.name, lineUid);
-      if (!linked) return { error: '請先完成正式環境綁定，再綁定測試環境' };
+      if (!linked) {
+        _upsertAccount(lineUid, displayName, employee.name, employee.jobTitle, phone, role);
+        _updateWeightUid(employee.jobTitle, lineUid, employee.name);
+      }
+      switchRichMenuByRole(lineUid, role);
       _log('INFO', 'apiBindByIdentity', `測試 UID 綁定：${employee.name}`, { testUid: lineUid });
       try { fsSyncAccounts(); } catch (_) {}
-      return { success: true, name: employee.name, jobTitle: employee.jobTitle, role: linked.role, isTest: true };
+      return { success: true, name: employee.name, jobTitle: employee.jobTitle, role: linked ? linked.role : role };
     }
 
-    const role = _deriveRole(employee.titleCategory);
     _upsertAccount(lineUid, displayName, employee.name, employee.jobTitle, phone, role);
     _updateWeightUid(employee.jobTitle, lineUid, employee.name);
     switchRichMenuByRole(lineUid, role);
