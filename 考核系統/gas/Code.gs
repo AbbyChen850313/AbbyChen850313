@@ -259,7 +259,8 @@ function _handleLiffBindAction(params) {
         params.displayName || '',
         params.name        || '',
         params.eid         || '',
-        params.phone       || ''
+        params.phone       || '',
+        params.isTest      || false
       );
 
     } else if (action === 'unbindSelf') {

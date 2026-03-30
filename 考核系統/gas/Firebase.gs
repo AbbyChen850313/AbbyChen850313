@@ -179,22 +179,22 @@ function fsSyncSettings() {
 }
 
 function fsSyncAccounts() {
-  const rows  = _sheetRows('LINE帳號');
+  const rows   = _sheetRows('LINE帳號');
   const writes = [];
   for (let i = 1; i < rows.length; i++) {
-    const uid = String(rows[i][COL_ACCOUNT.UID] || '').trim();
+    const uid     = String(rows[i][COL_ACCOUNT.UID]      || '').trim();
+    const testUid = String(rows[i][COL_ACCOUNT.TEST_UID] || '').trim();
     if (!uid) continue;
-    writes.push({
-      collection: 'accounts',
-      docId:      uid,
-      data: {
-        name:        String(rows[i][COL_ACCOUNT.NAME]         || '').trim(),
-        displayName: String(rows[i][COL_ACCOUNT.DISPLAY_NAME] || '').trim(),
-        jobTitle:    String(rows[i][COL_ACCOUNT.JOB_TITLE]    || '').trim(),
-        role:        String(rows[i][COL_ACCOUNT.ROLE]         || '').trim(),
-        status:      String(rows[i][COL_ACCOUNT.STATUS]       || '').trim(),
-      },
-    });
+    const data = {
+      name:        String(rows[i][COL_ACCOUNT.NAME]         || '').trim(),
+      displayName: String(rows[i][COL_ACCOUNT.DISPLAY_NAME] || '').trim(),
+      jobTitle:    String(rows[i][COL_ACCOUNT.JOB_TITLE]    || '').trim(),
+      role:        String(rows[i][COL_ACCOUNT.ROLE]         || '').trim(),
+      status:      String(rows[i][COL_ACCOUNT.STATUS]       || '').trim(),
+    };
+    writes.push({ collection: 'accounts', docId: uid, data });
+    // 同步測試 UID（不同 Login Channel 的同一個人）
+    if (testUid) writes.push({ collection: 'accounts', docId: testUid, data });
   }
   if (writes.length) fsBatchSet(writes);
   Logger.log(`同步 accounts ${writes.length} 筆`);

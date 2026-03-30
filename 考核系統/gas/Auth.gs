@@ -8,7 +8,7 @@ const MANAGER_TITLE_CATEGORIES = ['董事長', '經理', '廠長', '協理'];
 // LINE帳號 工作表欄位索引（0-based）
 const COL_ACCOUNT = {
   NAME:         0,  // A 姓名
-  UID:          1,  // B LINE_UID
+  UID:          1,  // B LINE_UID（正式環境）
   DISPLAY_NAME: 2,  // C LINE顯示名稱
   BOUND_AT:     3,  // D 綁定時間
   STATUS:       4,  // E 狀態
@@ -16,6 +16,7 @@ const COL_ACCOUNT = {
   PHONE:        6,  // G 電話
   ROLE:         7,  // H 角色（系統管理員/HR/主管/同仁）
   CLEAR:        8,  // I 清除帳號（checkbox，放最後避免誤觸）
+  TEST_UID:     9,  // J 測試環境 LINE_UID（不同 Login Channel）
 };
 
 // ============================================================
@@ -45,14 +46,16 @@ function getManagerInfo(lineUid) {
   };
 }
 
-/** 從 LINE帳號 表查詢已授權帳號 */
+/** 從 LINE帳號 表查詢已授權帳號（同時比對正式 UID 與測試 UID） */
 function _findAccountByUid(lineUid) {
   const rows = _sheetRows('LINE帳號');
   for (let i = 1; i < rows.length; i++) {
-    if (rows[i][COL_ACCOUNT.UID] === lineUid && rows[i][COL_ACCOUNT.STATUS] === '已授權') {
+    const primaryUid = String(rows[i][COL_ACCOUNT.UID]      || '').trim();
+    const testUid    = String(rows[i][COL_ACCOUNT.TEST_UID] || '').trim();
+    const matched    = (primaryUid === lineUid || testUid === lineUid);
+    if (matched && rows[i][COL_ACCOUNT.STATUS] === '已授權') {
       const jobTitle = String(rows[i][COL_ACCOUNT.JOB_TITLE] || '').trim();
       const roleFromColumn = String(rows[i][COL_ACCOUNT.ROLE] || '').trim();
-      // 向下相容：舊資料 I 欄為空時，從 F 欄判斷（F 欄曾存 HR/系統管理員）
       const role = roleFromColumn || (['HR', '系統管理員'].includes(jobTitle) ? jobTitle : '');
       return {
         name: String(rows[i][COL_ACCOUNT.NAME]).trim(),
@@ -117,15 +120,24 @@ function _updateWeightUid(jobTitle, lineUid, name) {
  * @param {string} employeeId - 使用者輸入的員工編號
  * @param {string} phone - 使用者輸入的手機號碼（必填）
  */
-function apiBindByIdentity(lineUid, displayName, name, employeeId, phone) {
+function apiBindByIdentity(lineUid, displayName, name, employeeId, phone, isTest) {
   try {
     const employee = _findEmployeeByIdentity(name, employeeId);
     if (!employee) return { error: '查無此員工，請確認姓名與員工編號' };
 
+    if (isTest) {
+      // 測試環境：把 lineUid 寫入同名正式帳號的 TEST_UID 欄，不另開新行
+      const linked = _linkTestUid(employee.name, lineUid);
+      if (!linked) return { error: '請先完成正式環境綁定，再綁定測試環境' };
+      _log('INFO', 'apiBindByIdentity', `測試 UID 綁定：${employee.name}`, { testUid: lineUid });
+      try { fsSyncAccounts(); } catch (_) {}
+      return { success: true, name: employee.name, jobTitle: employee.jobTitle, role: linked.role, isTest: true };
+    }
+
     const role = _deriveRole(employee.titleCategory);
     _upsertAccount(lineUid, displayName, employee.name, employee.jobTitle, phone, role);
     _updateWeightUid(employee.jobTitle, lineUid, employee.name);
-    switchRichMenuByRole(lineUid, role); // 直接傳 role，省去重新查 Sheet
+    switchRichMenuByRole(lineUid, role);
 
     _log('INFO', 'apiBindByIdentity', `綁定成功：${employee.name}`, { jobTitle: employee.jobTitle });
     try { fsSyncAccounts(); } catch (_) {}
@@ -140,6 +152,21 @@ function apiBindByIdentity(lineUid, displayName, name, employeeId, phone) {
     _log('ERROR', 'apiBindByIdentity', e.message, { stack: e.stack });
     return { error: '系統錯誤：' + e.message };
   }
+}
+
+/** 找到同姓名的正式帳號，把測試 UID 寫入 J 欄 */
+function _linkTestUid(name, testUid) {
+  const accountSheet = _sheet('LINE帳號');
+  const rows = _sheetRows('LINE帳號');
+  for (let i = 1; i < rows.length; i++) {
+    const rowName = String(rows[i][COL_ACCOUNT.NAME] || '').trim();
+    const status  = String(rows[i][COL_ACCOUNT.STATUS] || '').trim();
+    if (rowName === name && status === '已授權') {
+      accountSheet.getRange(i + 1, COL_ACCOUNT.TEST_UID + 1).setValue(testUid);
+      return { role: String(rows[i][COL_ACCOUNT.ROLE] || '').trim() };
+    }
+  }
+  return null;
 }
 
 /**

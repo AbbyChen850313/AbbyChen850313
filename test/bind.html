@@ -168,7 +168,7 @@ async function doBindByIdentity() {
   btn.disabled = true;
   btn.textContent = '驗證中...';
 
-  const result = await callGAS('apiBindByIdentity', [lineUid, displayName, name, employeeId, phone]);
+  const result = await callGAS('apiBindByIdentity', [lineUid, displayName, name, employeeId, phone, true]);
 
   btn.disabled = false;
   btn.textContent = '確認綁定';
