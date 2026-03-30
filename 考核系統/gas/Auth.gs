@@ -128,7 +128,7 @@ function apiBindByIdentity(lineUid, displayName, name, employeeId, phone, isTest
     if (isTest) {
       // 測試環境：把 lineUid 寫入同名正式帳號的 TEST_UID 欄，不另開新行
       const linked = _linkTestUid(employee.name, lineUid);
-      if (!linked) return { error: `找不到正式帳號（搜尋名稱：${employee.name}）` };
+      if (!linked) return { error: '請先完成正式環境綁定，再綁定測試環境' };
       _log('INFO', 'apiBindByIdentity', `測試 UID 綁定：${employee.name}`, { testUid: lineUid });
       try { fsSyncAccounts(); } catch (_) {}
       return { success: true, name: employee.name, jobTitle: employee.jobTitle, role: linked.role, isTest: true };

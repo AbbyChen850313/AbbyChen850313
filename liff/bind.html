@@ -80,10 +80,13 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const LIFF_ID = '2009611318-5UphK9JK';
+const LIFF_ID_PROD = '2009611318-5UphK9JK';
+const LIFF_ID_TEST = '2009619528-aJO34c6u';
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
 
-const LS_UID = 'liff_uid';
+// 動態判斷環境（liff.init 後由 liff.id 決定）
+let IS_TEST  = false;
+let LS_UID   = 'liff_uid';
 let lineUid = '';
 let displayName = '';
 let liffReady = false;
@@ -122,9 +125,13 @@ async function init() {
   try {
     document.getElementById('loadingStep').textContent = 'LIFF 初始化...';
     await Promise.race([
-      liff.init({ liffId: LIFF_ID }),
+      liff.init({ liffId: LIFF_ID_PROD }),
       new Promise((_, reject) => setTimeout(() => reject(new Error('LIFF init timeout')), 10000)),
     ]);
+
+    // init 後由 liff.id 判斷實際環境
+    IS_TEST = (liff.id === LIFF_ID_TEST);
+    LS_UID  = IS_TEST ? 'liff_uid_test' : 'liff_uid';
 
     if (!liff.isLoggedIn()) {
       liff.login({ redirectUri: location.href });
@@ -179,7 +186,7 @@ async function doBindByIdentity() {
   btn.disabled = true;
   btn.textContent = '驗證中...';
 
-  const result = await callGAS('apiBindByIdentity', [lineUid, displayName, name, employeeId, phone]);
+  const result = await callGAS('apiBindByIdentity', [lineUid, displayName, name, employeeId, phone, IS_TEST]);
 
   btn.disabled = false;
   btn.textContent = '確認綁定';
@@ -196,7 +203,7 @@ async function doBindByIdentity() {
 }
 
 function goToDashboard(role) {
-  if (lineUid) localStorage.setItem('liff_uid', lineUid);
+  if (lineUid) localStorage.setItem(LS_UID, lineUid);
   const uid = encodeURIComponent(lineUid);
   if (role === 'HR') {
     location.href = `admin.html?uid=${uid}`;
