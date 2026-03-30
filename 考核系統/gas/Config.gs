@@ -99,6 +99,7 @@ function enableTestChannel() {
   Logger.log('✅ 已設定使用測試Channel = true');
 }
 
+
 /**
  * 初始化系統設定工作表（首次使用時呼叫）
  * 含所有預設值，HR 可在工作表手動調整
