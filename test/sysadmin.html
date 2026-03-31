@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>系統管理員</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../shared/styles.css">
+  <script src="../shared/config.js"></script>
+  <script src="../shared/utils.js"></script>
   <style>
     .tab-content { display: none; }
     .tab-content.active { display: block; }
@@ -162,11 +164,6 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const IS_TEST = location.pathname.includes('/test/');
-const LIFF_ID = IS_TEST ? '2009619528-aJO34c6u' : '2009611318-5UphK9JK';
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzl8dfdhlZbIsgt6tSQahNW7mVoQmaNjsc4WJ4U_ETHcNS4MDojX5H5Ns5BX7J_TwKJvw/exec';
-const LS_UID  = IS_TEST ? 'liff_uid_test' : 'liff_uid';
-
 const params = new URLSearchParams(location.search);
 let lineUid = decodeURIComponent(params.get('uid') || '') || localStorage.getItem(LS_UID) || '';
 
@@ -460,20 +457,6 @@ async function saveSysSettings() {
 }
 
 // ── 共用 ─────────────────────────────────────────────────────────
-
-function callGAS(action, args) {
-  return fetch(GAS_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action, args: args || [] }),
-  }).then(r => r.json());
-}
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
 
 loadStatus();
 </script>

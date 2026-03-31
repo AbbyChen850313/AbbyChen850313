@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>帳號綁定</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../shared/styles.css">
+  <script src="../shared/config.js"></script>
+  <script src="../shared/utils.js"></script>
 </head>
 <body>
 
@@ -88,14 +90,6 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const LIFF_ID_PROD = '2009611318-5UphK9JK';
-const LIFF_ID_TEST = '2009619528-aJO34c6u';
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
-
-// 從 URL 路徑立即判斷環境（不等 liff.init，確保快取 key 正確）
-const IS_TEST = location.pathname.includes('/test/');
-const LS_UID  = IS_TEST ? 'liff_uid_test' : 'liff_uid';
-const LIFF_ID = IS_TEST ? LIFF_ID_TEST : LIFF_ID_PROD;
 let lineUid = '';
 let displayName = '';
 let _boundRole = '';
@@ -253,20 +247,6 @@ function goToDashboard(role) {
   } else {
     location.href = `dashboard.html?uid=${uid}`;
   }
-}
-
-function callGAS(action, args) {
-  return fetch(GAS_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action, args: args || [] }),
-  }).then(r => r.json());
-}
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
 }
 
 const s = document.createElement('script');

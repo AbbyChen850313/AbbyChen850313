@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>考核評分系統</title>
-  <link rel="stylesheet" href="styles.css">
-  <script src="firebase-config.js"></script>
+  <link rel="stylesheet" href="../shared/styles.css">
+  <script src="../shared/firebase-config.js"></script>
+  <script src="../shared/config.js"></script>
+  <script src="../shared/utils.js"></script>
   <script type="module">
     import { initializeApp }              from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js';
     import { getFirestore, doc, getDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js';
@@ -77,10 +79,6 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const IS_TEST = location.pathname.includes('/test/');
-const LIFF_ID = IS_TEST ? '2009619528-aJO34c6u' : '2009611318-5UphK9JK';
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzl8dfdhlZbIsgt6tSQahNW7mVoQmaNjsc4WJ4U_ETHcNS4MDojX5H5Ns5BX7J_TwKJvw/exec';
-const LS_UID  = IS_TEST ? 'liff_uid_test' : 'liff_uid';
 // Firestore 集合前綴：測試環境讀 test_xxx，正式環境讀 xxx（meta 共用）
 const FS_COL  = col => IS_TEST && col !== 'meta' ? 'test_' + col : col;
 let lineUid = '';
@@ -302,22 +300,8 @@ function goToScore(encodedName, encodedSection) {
   location.href = `score.html?uid=${encodeURIComponent(uid)}&eid=${encodedName}&section=${encodedSection}`;
 }
 
-function callGAS(action, args) {
-  return fetch(GAS_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action, args: args || [] }),
-  }).then(r => r.json());
-}
-
 function showError(msg) {
   document.getElementById('employeeList').innerHTML = `<div class="loading" style="color:#f44336">${msg}</div>`;
-}
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
 }
 
 const s = document.createElement('script');
