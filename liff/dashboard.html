@@ -162,7 +162,7 @@ async function loadDashboard(uid) {
 
     if (!dashboard) {
       // Firestore 尚未有資料（第一次），fallback 到 GAS
-      const data = await callGAS('apiGetDashboard', [uid]);
+      const data = await callGAS('apiGetDashboard', [uid, IS_TEST]);
       if (data.error) { showError(data.error); return; }
       if (data.isSysAdmin) { await _initSysAdminView(uid, data); return; }
       _renderManagerView(data);
@@ -185,7 +185,7 @@ async function loadDashboard(uid) {
 
 async function _loadMyScores(uid, quarter) {
   try {
-    const result = await callGAS('apiGetMyScores', [uid, quarter]);
+    const result = await callGAS('apiGetMyScores', [uid, quarter, IS_TEST]);
     if (!result || result.error) return;
     myScores = result;
     renderEmployeeList(); // 更新評分狀態顯示
@@ -222,7 +222,7 @@ async function loadAsUser(targetUid) {
   document.getElementById('employeeList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
 
   try {
-    const data = await callGAS('apiGetDashboard', [targetUid]);
+    const data = await callGAS('apiGetDashboard', [targetUid, IS_TEST]);
     if (data.error || data.isSysAdmin || data.isHR) {
       document.getElementById('employeeList').innerHTML =
         `<div class="loading" style="color:#888">${data.error || '此帳號無員工清單'}</div>`;

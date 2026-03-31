@@ -369,7 +369,7 @@ function apiGetScoreStatus(lineUid, isTest) {
 }
 
 /** 一次回傳儀表板所需所有資料，減少前端 API 來回次數 */
-function apiGetDashboard(lineUid) {
+function apiGetDashboard(lineUid, isTest) {
   const info = _verifyManager(lineUid);
   if (info.error) return info;
 
@@ -386,8 +386,8 @@ function apiGetDashboard(lineUid) {
   }
 
   const quarter = getCurrentQuarter();
-  const status = getScoreStatus(info, quarter);
-  const myScores = getMyScores(lineUid, quarter);
+  const status = getScoreStatus(info, quarter, !!isTest);
+  const myScores = getMyScores(lineUid, quarter, !!isTest);
   const settings = getSettings();
 
   return {
