@@ -39,6 +39,7 @@
   <button class="tab-btn active" onclick="switchTab('status')">系統狀態</button>
   <button class="tab-btn" onclick="switchTab('simulate')">模擬視角</button>
   <button class="tab-btn" onclick="switchTab('accounts')">帳號管理</button>
+  <button class="tab-btn" onclick="switchTab('settings')">系統設定</button>
   <button class="tab-btn" onclick="switchTab('logs')">日誌</button>
 </div>
 
@@ -77,6 +78,55 @@
   </div>
 </div>
 
+<!-- ── 系統設定 ── -->
+<div class="tab-content" id="tab-settings">
+  <div class="score-section" style="margin:8px">
+    <div class="section-title">評分期間設定</div>
+    <div class="setting-group">
+      <label class="setting-label">評分期間描述（顯示用）</label>
+      <input type="text" class="setting-input" id="sys_period" placeholder="如：115/1~3月">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">評分開始日</label>
+      <input type="date" class="setting-input" id="sys_start">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">評分截止日</label>
+      <input type="date" class="setting-input" id="sys_end">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">通知時間點1</label>
+      <input type="date" class="setting-input" id="sys_notify1">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">通知時間點2</label>
+      <input type="date" class="setting-input" id="sys_notify2">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">當前季度（如：115Q1）</label>
+      <input type="text" class="setting-input" id="sys_quarter" placeholder="115Q1">
+    </div>
+    <div class="btn-group" style="padding:0;margin-top:12px">
+      <button class="btn btn-primary" onclick="saveSysSettings()">儲存設定</button>
+    </div>
+  </div>
+
+  <div class="score-section" style="margin:8px">
+    <div class="section-title">系統管理設定</div>
+    <div class="setting-group">
+      <label class="setting-label">系統管理員員工編號（多人用逗號分隔）</label>
+      <input type="text" class="setting-input" id="sys_adminIds" placeholder="如：A001,A002">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">綁定驗證碼</label>
+      <input type="text" class="setting-input" id="sys_bindCode" placeholder="預設：HR0000">
+    </div>
+    <div class="btn-group" style="padding:0;margin-top:12px">
+      <button class="btn btn-primary" onclick="saveSysSettings()">儲存設定</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── 日誌 ── -->
 <div class="tab-content" id="tab-logs">
   <div style="padding:8px">
@@ -111,9 +161,10 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const LIFF_ID = location.pathname.includes('/test/') ? '2009619528-aJO34c6u' : '2009611318-5UphK9JK';
+const IS_TEST = location.pathname.includes('/test/');
+const LIFF_ID = IS_TEST ? '2009619528-aJO34c6u' : '2009611318-5UphK9JK';
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzl8dfdhlZbIsgt6tSQahNW7mVoQmaNjsc4WJ4U_ETHcNS4MDojX5H5Ns5BX7J_TwKJvw/exec';
-const LS_UID  = location.pathname.includes('/test/') ? 'liff_uid_test' : 'liff_uid';
+const LS_UID  = IS_TEST ? 'liff_uid_test' : 'liff_uid';
 
 const params = new URLSearchParams(location.search);
 let lineUid = decodeURIComponent(params.get('uid') || '') || localStorage.getItem(LS_UID) || '';
@@ -122,13 +173,14 @@ let _allAccounts = [];
 let _logsCache   = [];
 
 function switchTab(tab) {
-  const tabs = ['status', 'simulate', 'accounts', 'logs'];
+  const tabs = ['status', 'simulate', 'accounts', 'settings', 'logs'];
   document.querySelectorAll('.tab-btn').forEach((btn, i) => btn.classList.toggle('active', tabs[i] === tab));
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   if (tab === 'status')    loadStatus();
   if (tab === 'simulate')  loadSimulateTab();
   if (tab === 'accounts')  loadAccounts();
+  if (tab === 'settings')  loadSysSettings();
   if (tab === 'logs')      loadLogs();
 }
 
@@ -166,16 +218,28 @@ async function loadStatus() {
 
 async function loadSimulateTab() {
   const accounts = await callGAS('apiGetAllAccounts', [lineUid]);
-  if (!accounts || accounts.error) return;
+  if (!accounts || accounts.error) {
+    showToast('❌ ' + ((accounts && accounts.error) || '無法載入帳號清單'));
+    document.getElementById('simAccountSelect').innerHTML = '<option value="">-- 載入失敗，請重試 --</option>';
+    return;
+  }
   _allAccounts = accounts;
 
-  const opts = accounts.map(a =>
-    `<option value="${a.lineUid}" data-role="${a.role || ''}" data-name="${a.name}">${a.name}（${a.role || '同仁'}）</option>`
-  ).join('');
+  // 在測試環境優先使用 testUid；正式環境使用 lineUid
+  const opts = accounts
+    .filter(a => IS_TEST ? a.testUid : a.lineUid)  // 只顯示此環境有 UID 的帳號
+    .map(a => {
+      const uid = IS_TEST ? a.testUid : a.lineUid;
+      return `<option value="${uid}" data-role="${a.role || ''}" data-name="${a.name}">${a.name}（${a.role || '同仁'}）</option>`;
+    }).join('');
 
-  // 主頁選單
+  if (!opts) {
+    document.getElementById('simAccountSelect').innerHTML = '<option value="">-- 尚無已綁定帳號 --</option>';
+    document.getElementById('simViewSwitch').innerHTML = '';
+    return;
+  }
+
   document.getElementById('simAccountSelect').innerHTML = '<option value="">-- 請選擇帳號 --</option>' + opts;
-  // 覆蓋層裡的切換下拉
   document.getElementById('simViewSwitch').innerHTML = opts;
 }
 
@@ -355,6 +419,39 @@ function renderLogs() {
       <div style="font-size:13px;color:var(--text)">[${l.fn}] ${l.msg}</div>
       ${l.detail ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;word-break:break-all">${l.detail}</div>` : ''}
     </div>`).join('');
+}
+
+// ── 系統設定 ─────────────────────────────────────────────────────
+
+async function loadSysSettings() {
+  const settings = await callGAS('apiGetSettings', []);
+  const toDate = v => {
+    if (!v) return '';
+    const d = new Date(v);
+    return isNaN(d) ? '' : d.toISOString().split('T')[0];
+  };
+  document.getElementById('sys_period').value   = settings['評分期間描述'] || '';
+  document.getElementById('sys_start').value    = toDate(settings['評分開始日']);
+  document.getElementById('sys_end').value      = toDate(settings['評分截止日']);
+  document.getElementById('sys_notify1').value  = toDate(settings['通知時間點1']);
+  document.getElementById('sys_notify2').value  = toDate(settings['通知時間點2']);
+  document.getElementById('sys_quarter').value  = settings['當前季度'] || '';
+  document.getElementById('sys_adminIds').value = settings['系統管理員員工編號'] || '';
+  document.getElementById('sys_bindCode').value = settings['綁定驗證碼'] || '';
+}
+
+async function saveSysSettings() {
+  const result = await callGAS('apiUpdateSettings', [lineUid, {
+    '評分期間描述':     document.getElementById('sys_period').value,
+    '評分開始日':       document.getElementById('sys_start').value,
+    '評分截止日':       document.getElementById('sys_end').value,
+    '通知時間點1':      document.getElementById('sys_notify1').value,
+    '通知時間點2':      document.getElementById('sys_notify2').value,
+    '當前季度':         document.getElementById('sys_quarter').value,
+    '系統管理員員工編號': document.getElementById('sys_adminIds').value,
+    '綁定驗證碼':       document.getElementById('sys_bindCode').value,
+  }]);
+  showToast(result.error ? '❌ ' + result.error : '✅ 設定已儲存');
 }
 
 // ── 共用 ─────────────────────────────────────────────────────────

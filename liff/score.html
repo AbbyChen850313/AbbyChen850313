@@ -167,7 +167,7 @@ function updatePreview() {
 }
 
 function loadExistingScores() {
-  callGAS('apiGetMyScores', [lineUid, null]).then(allScores => {
+  callGAS('apiGetMyScores', [lineUid, null, IS_TEST]).then(allScores => {
     const existing = allScores[employeeName];
     if (!existing) return;
     Object.entries(existing.scores || {}).forEach(([key, val]) => { if (val) selectGrade(key, val); });
@@ -177,7 +177,7 @@ function loadExistingScores() {
     if (existing.status === '已送出') document.getElementById('submitBtn').textContent = '修改送出';
   });
 
-  callGAS('apiGetScoreStatus', [lineUid]).then(status => {
+  callGAS('apiGetScoreStatus', [lineUid, IS_TEST]).then(status => {
     const emp = (status.employees || []).find(e => e.name === employeeName);
     if (emp) {
       document.getElementById('empTenure').textContent = emp.tenure || '-';

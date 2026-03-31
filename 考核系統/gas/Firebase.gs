@@ -81,19 +81,28 @@ function fsGet(collection, docId) {
     headers:            { Authorization: `Bearer ${_fsToken()}` },
     muteHttpExceptions: true,
   });
-  if (resp.getResponseCode() === 404) return null;
+  const code = resp.getResponseCode();
+  if (code === 404) return null;
+  if (code < 200 || code >= 300) {
+    _log('WARN', 'fsGet', `Firestore 讀取失敗 HTTP ${code}`, `${collection}/${docId}`);
+    return null;
+  }
   const doc = JSON.parse(resp.getContentText());
   return _fromFields(doc.fields);
 }
 
 /** 刪除單一文件 */
 function fsDelete(collection, docId) {
-  const url = `${FS_BASE}/${collection}/${encodeURIComponent(docId)}`;
-  UrlFetchApp.fetch(url, {
+  const url  = `${FS_BASE}/${collection}/${encodeURIComponent(docId)}`;
+  const resp = UrlFetchApp.fetch(url, {
     method:             'delete',
     headers:            { Authorization: `Bearer ${_fsToken()}` },
     muteHttpExceptions: true,
   });
+  const code = resp.getResponseCode();
+  if (code < 200 || code >= 300) {
+    _log('WARN', 'fsDelete', `Firestore 刪除失敗 HTTP ${code}`, `${collection}/${docId}`);
+  }
 }
 
 /** 批次寫入（最多 500 筆） */

@@ -326,7 +326,8 @@ function _upsertAccount(lineUid, displayName, name, jobTitle, phone, role, emplo
 }
 
 /**
- * 取得所有已綁定帳號清單（HR 專用）
+ * 取得所有已綁定帳號清單（HR / SysAdmin 用）
+ * 同時回傳正式 UID 與測試 UID 帳號，供模擬視角使用
  */
 function apiGetAllAccounts(callerUid) {
   const info = getManagerInfo(callerUid);
@@ -335,10 +336,13 @@ function apiGetAllAccounts(callerUid) {
   const rows = _sheetRows('LINE帳號');
   const accounts = [];
   for (let i = 1; i < rows.length; i++) {
-    if (!rows[i][COL_ACCOUNT.UID]) continue;
+    const uid     = String(rows[i][COL_ACCOUNT.UID]      || '').trim();
+    const testUid = String(rows[i][COL_ACCOUNT.TEST_UID] || '').trim();
+    if (!uid && !testUid) continue;  // 正式 UID 與測試 UID 都空才跳過
     accounts.push({
       name:        String(rows[i][COL_ACCOUNT.NAME]        || '').trim(),
-      lineUid:     String(rows[i][COL_ACCOUNT.UID]         || '').trim(),
+      lineUid:     uid,
+      testUid:     testUid,
       displayName: String(rows[i][COL_ACCOUNT.DISPLAY_NAME]|| '').trim(),
       boundAt:     rows[i][COL_ACCOUNT.BOUND_AT] ? new Date(rows[i][COL_ACCOUNT.BOUND_AT]).toLocaleDateString('zh-TW') : '-',
       status:      String(rows[i][COL_ACCOUNT.STATUS]      || '').trim(),

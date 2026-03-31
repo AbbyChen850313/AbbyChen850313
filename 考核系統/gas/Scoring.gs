@@ -181,12 +181,18 @@ function getGradeLabel(score) {
  * 取得主管的評分完成狀況
  * @param {Object} managerInfo
  * @param {string} quarter
+ * @param {boolean} [isTest=false] - 是否讀取測試環境評分記錄
  * @returns {Object} { total, scored, pending, employees }
  */
-function getScoreStatus(managerInfo, quarter) {
+function getScoreStatus(managerInfo, quarter, isTest) {
   const employees = getEmployeesForManager(managerInfo);
 
-  const sheet = _sheet('評分記錄');
+  const sheetName = isTest ? '評分記錄_test' : '評分記錄';
+  const sheet = _sheet(sheetName);
+  if (!sheet) {
+    return { total: employees.length, scored: 0, draft: 0, pending: employees.length,
+             employees: employees.map(e => ({ ...e, scoreStatus: '未評分' })), quarter };
+  }
   const recordData = sheet.getDataRange().getValues();
 
   const scoredNames = new Set();
@@ -219,12 +225,15 @@ function getScoreStatus(managerInfo, quarter) {
 
 /**
  * 取得主管對某員工已填的評分（草稿或已送出）
+ * @param {boolean} [isTest=false] - 是否讀取測試環境評分記錄
  */
-function getMyScores(lineUid, quarter) {
+function getMyScores(lineUid, quarter, isTest) {
   const managerInfo = getManagerInfo(lineUid);
-  if (!managerInfo) return [];
+  if (!managerInfo) return {};
 
-  const sheet = _sheet('評分記錄');
+  const sheetName = isTest ? '評分記錄_test' : '評分記錄';
+  const sheet = _sheet(sheetName);
+  if (!sheet) return {};
   const data = sheet.getDataRange().getValues();
 
   const result = {};

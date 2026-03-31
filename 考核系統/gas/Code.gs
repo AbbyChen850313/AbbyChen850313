@@ -347,19 +347,19 @@ function apiSubmitScore(data) {
   return submitScore(data);
 }
 
-function apiGetMyScores(lineUid, quarter) {
+function apiGetMyScores(lineUid, quarter, isTest) {
   const info = getManagerInfo(lineUid);
   if (!info) return { error: '身份驗證失敗' };
   if (!info.isHR && info.responsibilities.length === 0) return { error: '無權限' };
-  return getMyScores(lineUid, quarter || getCurrentQuarter());
+  return getMyScores(lineUid, quarter || getCurrentQuarter(), !!isTest);
 }
 
-function apiGetScoreStatus(lineUid) {
+function apiGetScoreStatus(lineUid, isTest) {
   const info = _verifyManager(lineUid);
   if (info.error) return info;
   if (info.isSysAdmin) return { isSysAdmin: true, managerName: info.managerName };
   if (info.isHR) return { isHR: true };
-  const status = getScoreStatus(info, getCurrentQuarter());
+  const status = getScoreStatus(info, getCurrentQuarter(), !!isTest);
   status.managerName = info.managerName;
   return status;
 }
