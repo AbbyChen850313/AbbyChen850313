@@ -77,7 +77,8 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const LIFF_ID = location.pathname.includes('/test/') ? '2009619528-aJO34c6u' : '2009611318-5UphK9JK';
+const IS_TEST = location.pathname.includes('/test/');
+const LIFF_ID = IS_TEST ? '2009619528-aJO34c6u' : '2009611318-5UphK9JK';
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
 
 const SCORE_ITEMS = [
@@ -197,6 +198,7 @@ function getFormData() {
     scores: { ...currentScores },
     special: document.getElementById('specialAdj').value || '0',
     note: document.getElementById('noteText').value,
+    isTest: IS_TEST,
   };
 }
 

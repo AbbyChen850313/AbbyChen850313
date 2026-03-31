@@ -60,14 +60,18 @@ function _b64u(input) {
 
 /** 寫入/覆蓋單一文件 */
 function fsSet(collection, docId, data) {
-  const url = `${FS_BASE}/${collection}/${encodeURIComponent(docId)}`;
-  UrlFetchApp.fetch(url, {
+  const url  = `${FS_BASE}/${collection}/${encodeURIComponent(docId)}`;
+  const resp = UrlFetchApp.fetch(url, {
     method:      'PATCH',
     contentType: 'application/json',
     headers:     { Authorization: `Bearer ${_fsToken()}` },
     payload:     JSON.stringify({ fields: _toFields(data) }),
     muteHttpExceptions: true,
   });
+  const code = resp.getResponseCode();
+  if (code < 200 || code >= 300) {
+    _log('WARN', 'fsSet', `Firestore 寫入失敗 HTTP ${code}`, `${collection}/${docId}`);
+  }
 }
 
 /** 讀取單一文件，回傳 plain object；找不到回傳 null */
@@ -104,13 +108,17 @@ function fsBatchSet(writes) {
       },
     })),
   };
-  UrlFetchApp.fetch(url, {
+  const resp = UrlFetchApp.fetch(url, {
     method:      'POST',
     contentType: 'application/json',
     headers:     { Authorization: `Bearer ${_fsToken()}` },
     payload:     JSON.stringify(body),
     muteHttpExceptions: true,
   });
+  const code = resp.getResponseCode();
+  if (code < 200 || code >= 300) {
+    _log('WARN', 'fsBatchSet', `Firestore 批次寫入失敗 HTTP ${code}`, `${writes.length} 筆`);
+  }
 }
 
 // ── Type conversion ───────────────────────────────────────
@@ -267,10 +275,11 @@ function fsSyncManagerDashboard(managerUid, quarter, isTest) {
   });
 }
 
-/** 同步單筆評分記錄 */
-function fsSyncScore(quarter, managerUid, empName, data) {
-  const docId = `${quarter}_${managerUid}_${empName}`;
-  fsSet('scores', docId, {
+/** 同步單筆評分記錄（isTest=true 時寫入 test_scores collection） */
+function fsSyncScore(quarter, managerUid, empName, data, isTest) {
+  const collection = isTest ? 'test_scores' : 'scores';
+  const docId      = `${quarter}_${managerUid}_${empName}`;
+  fsSet(collection, docId, {
     quarter,
     managerUid,
     empName,

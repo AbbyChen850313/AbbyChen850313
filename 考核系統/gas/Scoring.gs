@@ -31,7 +31,8 @@ function _writeScore(data, isSubmitted) {
     return { error: '身份驗證失敗' };
   }
 
-  const quarter = data.quarter || getCurrentQuarter();
+  const isTest      = !!data.isTest;
+  const quarter     = data.quarter || getCurrentQuarter();
   const { employeeName, section, scores, special, note } = data;
   const managerName = managerInfo.managerName;
 
@@ -48,7 +49,9 @@ function _writeScore(data, isSubmitted) {
   const finalScore = Math.round((rawScore + specialAdj) * 100) / 100;
   const weightedScore = Math.round(finalScore * weight * 100) / 100;
 
-  const sheet = _sheet('評分記錄');
+  // 測試環境寫入獨立的工作表，避免污染正式評分記錄
+  const sheetName = isTest ? '評分記錄_test' : '評分記錄';
+  const sheet = _sheet(sheetName) || _ss().insertSheet(sheetName);
   const allData = sheet.getDataRange().getValues();
 
   // 找是否已有這筆記錄（同主管、同員工、同季度）
@@ -85,17 +88,19 @@ function _writeScore(data, isSubmitted) {
     sheet.appendRow(rowData);
   }
 
-  _log('INFO', '_writeScore', `${managerName} → ${employeeName} ${isSubmitted ? '送出' : '草稿'}`, { quarter, weightedScore });
+  _log('INFO', '_writeScore', `${isTest ? '[TEST] ' : ''}${managerName} → ${employeeName} ${isSubmitted ? '送出' : '草稿'}`, { quarter, weightedScore });
 
-  // 同步到 Firestore
+  // 同步到 Firestore（失敗時記錄 WARN，不影響主流程）
   try {
     fsSyncScore(quarter, data.lineUid, employeeName, {
       managerName, section, scores, note: note || '',
       rawScore, finalScore, weightedScore,
       status: isSubmitted ? '已送出' : '草稿',
-    });
-    fsSyncManagerDashboard(data.lineUid, quarter);
-  } catch (_) {}
+    }, isTest);
+    fsSyncManagerDashboard(data.lineUid, quarter, isTest);
+  } catch (e) {
+    _log('WARN', '_writeScore', 'Firestore 同步失敗', e && e.message);
+  }
 
   return {
     success: true,
