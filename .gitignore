@@ -7,3 +7,11 @@ firebase-adminsdk*.json
 # Local env files
 .env
 .env.*
+flask_backend/.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
