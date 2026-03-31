@@ -138,8 +138,26 @@ async function _refreshLiffUid() {
 async function loadDashboard(uid) {
   try {
     await _waitForFirebase();
-    // 先從 Firestore 讀帳號資料（快），確認角色
-    const account = await _fsDoc(FS_COL('accounts'), uid);
+
+    // 先嘗試 Firestore（快）；離線時自動 fallback 到 GAS
+    let account;
+    let firestoreAvailable = true;
+    try {
+      account = await _fsDoc(FS_COL('accounts'), uid);
+    } catch (_) {
+      firestoreAvailable = false;
+    }
+
+    if (!firestoreAvailable) {
+      // Firestore 離線（常見於 LINE LIFF 內建瀏覽器）→ 完全走 GAS
+      const data = await callGAS('apiGetDashboard', [uid, IS_TEST]);
+      if (!data || data.error) { showError(data ? data.error : '載入失敗'); return; }
+      if (data.isHR) { _initHRView(); return; }
+      if (data.isSysAdmin) { await _initSysAdminView(uid, data); return; }
+      _renderManagerView(data);
+      return;
+    }
+
     if (!account) {
       localStorage.removeItem(LS_UID);
       location.href = 'bind.html';
@@ -151,14 +169,16 @@ async function loadDashboard(uid) {
       return;
     }
 
-    // 同時讀 dashboard snapshot + settings
-    const [dashboard, settings] = await Promise.all([
-      _fsDoc(FS_COL('managerDashboard'), uid),
-      _fsDoc('meta', 'settings'),
-    ]);
+    // 同時讀 dashboard snapshot + settings（離線時 dashboard = null → 走 GAS fallback）
+    let dashboard = null, settings = null;
+    try {
+      [dashboard, settings] = await Promise.all([
+        _fsDoc(FS_COL('managerDashboard'), uid),
+        _fsDoc('meta', 'settings'),
+      ]);
+    } catch (_) { /* Firestore 離線，繼續走下方 GAS fallback */ }
 
     if (!dashboard) {
-      // Firestore 尚未有資料（第一次），fallback 到 GAS
       const data = await callGAS('apiGetDashboard', [uid, IS_TEST]);
       if (data.error) { showError(data.error); return; }
       if (data.isSysAdmin) { await _initSysAdminView(uid, data); return; }
@@ -167,13 +187,16 @@ async function loadDashboard(uid) {
     }
 
     if (account.role === '系統管理員') {
-      const accounts = await _fsCollection(FS_COL('accounts'));
-      await _initSysAdminView(uid, { accounts: accounts.map(a => ({ ...a, lineUid: a.id })), settings });
+      let sysAccounts = [];
+      try {
+        const col = await _fsCollection(FS_COL('accounts'));
+        sysAccounts = col.map(a => ({ ...a, lineUid: a.id }));
+      } catch (_) { /* Firestore 離線，以空陣列繼續 */ }
+      await _initSysAdminView(uid, { accounts: sysAccounts, settings });
       return;
     }
 
     _renderManagerView({ ...dashboard, settings: settings || {}, myScores: {} });
-    // 背景補齊 myScores（草稿/已送出狀態）
     _loadMyScores(uid, dashboard.quarter);
   } catch (err) {
     showError('載入失敗：' + err.message);
