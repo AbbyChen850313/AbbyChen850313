@@ -21,11 +21,13 @@ api.interceptors.request.use((req) => {
   return req;
 });
 
-// Normalise errors: always throw { error: string }
+// Normalise errors: preserve response data while surfacing message
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    const serverMsg = err.response?.data?.error;
-    throw new Error(serverMsg ?? err.message ?? "網路錯誤");
+    const data = err.response?.data ?? {};
+    const normalised = new Error(data.error ?? err.message ?? "網路錯誤") as any;
+    normalised.response = err.response;
+    throw normalised;
   }
 );
