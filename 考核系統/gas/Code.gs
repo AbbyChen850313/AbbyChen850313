@@ -400,10 +400,10 @@ function apiGetDashboard(lineUid) {
 }
 
 // --- Admin (HR only) ---
-function apiGetAllStatus(lineUid) {
+function apiGetAllStatus(lineUid, isTest) {
   const info = _verifyHROrSysAdmin(lineUid);
   if (info.error) return info;
-  return getAllManagerStatus(getCurrentQuarter());
+  return getAllManagerStatus(getCurrentQuarter(), !!isTest);
 }
 
 function apiUpdateSettings(lineUid, newSettings) {

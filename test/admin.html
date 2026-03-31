@@ -116,9 +116,10 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const LIFF_ID = location.pathname.includes('/test/') ? '2009619528-aJO34c6u' : '2009611318-5UphK9JK';
+const IS_TEST = location.pathname.includes('/test/');
+const LIFF_ID = IS_TEST ? '2009619528-aJO34c6u' : '2009611318-5UphK9JK';
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzl8dfdhlZbIsgt6tSQahNW7mVoQmaNjsc4WJ4U_ETHcNS4MDojX5H5Ns5BX7J_TwKJvw/exec';
-const LS_UID  = location.pathname.includes('/test/') ? 'liff_uid_test' : 'liff_uid';
+const LS_UID  = IS_TEST ? 'liff_uid_test' : 'liff_uid';
 
 const params = new URLSearchParams(location.search);
 let lineUid = decodeURIComponent(params.get('uid') || '') || localStorage.getItem(LS_UID) || '';
@@ -137,7 +138,7 @@ function switchTab(tab) {
 }
 
 async function loadProgress() {
-  const status = await callGAS('apiGetAllStatus', [lineUid]);
+  const status = await callGAS('apiGetAllStatus', [lineUid, IS_TEST]);
   if (!status || status.error) {
     document.getElementById('progressTable').innerHTML =
       `<div class="loading" style="color:#f44336">${(status && status.error) || '無法載入'}</div>`;
