@@ -1,0 +1,144 @@
+"""
+Pure business logic for scoring calculations.
+No I/O — takes dicts in, returns dicts out.
+"""
+
+from __future__ import annotations
+
+import math
+from datetime import datetime
+
+
+_GRADE_SCORES: dict[str, float] = {"甲": 95, "乙": 85, "丙": 65, "丁": 35}
+
+
+def grade_to_score(value: str | float) -> float | None:
+    """Convert a grade string ('甲'/'乙'/'丙'/'丁') or numeric string to float."""
+    if isinstance(value, (int, float)):
+        return float(value)
+    mapped = _GRADE_SCORES.get(str(value).strip())
+    if mapped is not None:
+        return mapped
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def calc_raw_score(scores: dict[str, str]) -> float:
+    """Average of the six item scores (only non-empty items counted)."""
+    values = [
+        grade_to_score(scores.get(f"item{i}", ""))
+        for i in range(1, 7)
+    ]
+    valid = [v for v in values if v is not None and not math.isnan(v)]
+    if not valid:
+        return 0.0
+    return round(sum(valid) / len(valid), 2)
+
+
+def calc_final_score(raw_score: float, special: float) -> float:
+    return round(raw_score + special, 2)
+
+
+def calc_weighted_score(final_score: float, weight: float) -> float:
+    return round(final_score * weight, 2)
+
+
+def score_grade(score: float) -> str:
+    if score >= 90:
+        return "甲等"
+    if score >= 75:
+        return "乙等"
+    if score >= 60:
+        return "丙等"
+    return "丁等"
+
+
+def calc_all(scores: dict, special: float, weight: float) -> dict:
+    raw = calc_raw_score(scores)
+    final = calc_final_score(raw, special)
+    weighted = calc_weighted_score(final, weight)
+    return {
+        "rawScore": raw,
+        "finalScore": final,
+        "weightedScore": weighted,
+    }
+
+
+# ── Tenure & eligibility ───────────────────────────────────────────────────
+
+def _parse_date(date_str: str) -> datetime | None:
+    """Parse TW-style or ISO-style date strings."""
+    if not date_str:
+        return None
+    for fmt in ("%Y/%m/%d", "%Y-%m-%d", "%Y/%m/%d %H:%M:%S"):
+        try:
+            return datetime.strptime(date_str.strip(), fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def calc_tenure(join_date_str: str) -> str:
+    join = _parse_date(join_date_str)
+    if not join:
+        return "-"
+    now = datetime.now()
+    years = now.year - join.year
+    months = now.month - join.month
+    if months < 0:
+        years -= 1
+        months += 12
+    if years == 0:
+        return f"{months}個月"
+    if months == 0:
+        return f"{years}年"
+    return f"{years}年{months}個月"
+
+
+def days_since_join(join_date_str: str) -> int:
+    join = _parse_date(join_date_str)
+    if not join:
+        return 0
+    return (datetime.now() - join).days
+
+
+def is_probation(join_date_str: str, probation_days: int = 90) -> bool:
+    return days_since_join(join_date_str) < probation_days
+
+
+def is_eligible(join_date_str: str, min_days: int = 3) -> bool:
+    return days_since_join(join_date_str) >= min_days
+
+
+# ── Quarter helpers ────────────────────────────────────────────────────────
+
+def current_quarter() -> str:
+    now = datetime.now()
+    roc_year = now.year - 1911
+    q = (now.month - 1) // 3 + 1
+    return f"{roc_year:03d}Q{q}"
+
+
+def quarter_to_description(quarter: str) -> str:
+    if not quarter or len(quarter) < 5:
+        return quarter or ""
+    roc_year = quarter[:3]
+    q = int(quarter[4])
+    ranges = {1: "1~3月", 2: "4~6月", 3: "7~9月", 4: "10~12月"}
+    return f"{roc_year}/{ranges.get(q, '')}"
+
+
+def is_in_scoring_period(settings: dict) -> bool:
+    """Return True if today is within the configured scoring window."""
+    start_str = settings.get("評分開始日", "")
+    end_str = settings.get("評分截止日", "")
+    if not start_str or not end_str:
+        return True  # No window configured → always open
+    start = _parse_date(start_str)
+    end = _parse_date(end_str)
+    if not start or not end:
+        return True
+    now = datetime.now()
+    return start <= now <= end

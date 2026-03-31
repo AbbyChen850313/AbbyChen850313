@@ -1,0 +1,85 @@
+"""
+Central configuration — reads from environment variables (local dev)
+or Google Cloud Secret Manager (production).
+"""
+
+import os
+import json
+import logging
+
+logger = logging.getLogger(__name__)
+
+_secrets_cache: dict[str, str] = {}
+
+
+def _get_secret(name: str) -> str:
+    """Return secret value; env var takes precedence over Secret Manager."""
+    if name in _secrets_cache:
+        return _secrets_cache[name]
+
+    env_val = os.environ.get(name)
+    if env_val:
+        _secrets_cache[name] = env_val
+        return env_val
+
+    try:
+        from google.cloud import secretmanager  # type: ignore
+
+        project = os.environ.get("GCP_PROJECT", "linchun-hr")
+        client = secretmanager.SecretManagerServiceClient()
+        resource = f"projects/{project}/secrets/{name}/versions/latest"
+        response = client.access_secret_version(request={"name": resource})
+        val = response.payload.data.decode("UTF-8")
+        _secrets_cache[name] = val
+        logger.info("Loaded secret '%s' from Secret Manager.", name)
+        return val
+    except Exception as exc:
+        raise RuntimeError(
+            f"Secret '{name}' not found in env or Secret Manager: {exc}"
+        ) from exc
+
+
+# ── Static config (non-sensitive) ──────────────────────────────────────────
+
+GCP_PROJECT: str = os.environ.get("GCP_PROJECT", "linchun-hr")
+
+SPREADSHEET_ID: str = os.environ.get(
+    "SPREADSHEET_ID", "1VKHfnnrv-xfdqj-36I6grY8K-YcuCd8WMIcNAvRA_eg"
+)
+TEST_SPREADSHEET_ID: str = os.environ.get("TEST_SPREADSHEET_ID", "")
+HR_SPREADSHEET_ID: str = os.environ.get(
+    "HR_SPREADSHEET_ID", "1hOBSm5BnCjsrp2rX51EN5kYVtEgLZ8FVIMF90_5BMqA"
+)
+
+LIFF_ID: str = os.environ.get("LIFF_ID", "2009611318-5UphK9JK")
+LIFF_ID_TEST: str = os.environ.get("LIFF_ID_TEST", "2009619528-aJO34c6u")
+
+# Allowed CORS origins
+ALLOWED_ORIGINS: list[str] = [
+    "https://linchun-hr.web.app",
+    "https://linchun-hr.firebaseapp.com",
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+
+
+# ── Secret accessors ────────────────────────────────────────────────────────
+
+def line_channel_token(is_test: bool = False) -> str:
+    key = "LINE_CHANNEL_TOKEN_TEST" if is_test else "LINE_CHANNEL_TOKEN"
+    return _get_secret(key)
+
+
+def line_channel_secret(is_test: bool = False) -> str:
+    key = "LINE_CHANNEL_SECRET_TEST" if is_test else "LINE_CHANNEL_SECRET"
+    return _get_secret(key)
+
+
+def gcp_sa_info() -> dict:
+    """Return parsed Service Account JSON dict."""
+    raw = _get_secret("GCP_SA_KEY")
+    return json.loads(raw)
+
+
+def jwt_secret() -> str:
+    return _get_secret("JWT_SECRET")

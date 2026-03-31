@@ -1,0 +1,18 @@
+flask==3.1.0
+flask-cors==5.0.0
+gunicorn==23.0.0
+
+# Google
+gspread==6.1.4
+google-auth==2.37.0
+google-cloud-secret-manager==2.22.0
+
+# LINE
+line-bot-sdk==3.13.0
+
+# Auth
+PyJWT==2.10.1
+
+# Utils
+python-dateutil==2.9.0
+requests==2.32.3
