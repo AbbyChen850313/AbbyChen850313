@@ -266,9 +266,9 @@ function _sixCellAreas(startY) {
 // LINE API 呼叫
 // ============================================================
 
-/** 取得目前作用中環境的 Bot Token（統一由 getActiveEnv() 決定） */
+/** 取得目前作用中環境的 Bot Token（依 request context 決定，確保測試請求用測試 token） */
 function _getBotToken() {
-  return getActiveEnv().botToken;
+  return _isTestRequest() ? CONFIG.LINE_BOT_TOKEN_TEST : CONFIG.LINE_BOT_TOKEN;
 }
 
 function _lineApiPost(path, payload) {

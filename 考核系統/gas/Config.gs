@@ -83,7 +83,12 @@ function _quarterToDescription(quarter) {
  * @returns {{ isTest: boolean, botToken: string, liffId: string, label: string }}
  */
 function getActiveEnv() {
+  // 環境設定（使用哪個 Channel）永遠存在正式 Spreadsheet，與 request 的 isTest 無關
+  const wasTest = _isTestRequest();
+  _setRequestIsTest(false);
   const settings = getSettings();
+  _setRequestIsTest(wasTest);
+
   const isTest = settings['使用測試Channel'] === true || settings['使用測試Channel'] === 'true';
   return {
     isTest,

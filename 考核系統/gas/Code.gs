@@ -172,6 +172,7 @@ function doPost(e) {
 
     // LINE Webhook 事件（Bot 收到訊息）
     if (body.events) {
+      _setRequestIsTest(getActiveEnv().isTest); // 確保 webhook handler 路由到正確 Spreadsheet
       _handleLineWebhook(body.events);
       return _jsonOut({ ok: true });
     }
@@ -195,6 +196,7 @@ function doPost(e) {
       apiSyncEmployees:       a => !!a[1],
       apiGetAllAccounts:      a => !!a[1],
       apiResetAccount:        a => !!a[2],
+      apiGetLogs:             a => !!a[1],
     };
     _setRequestIsTest(_IS_TEST_EXTRACTORS[action] ? _IS_TEST_EXTRACTORS[action](args) : false);
 

@@ -220,7 +220,7 @@ async function loadStatus() {
 // ── 模擬視角 ─────────────────────────────────────────────────────
 
 async function loadSimulateTab() {
-  const accounts = await callGAS('apiGetAllAccounts', [lineUid]);
+  const accounts = await callGAS('apiGetAllAccounts', [lineUid, IS_TEST]);
   if (!accounts || accounts.error) {
     showToast('❌ ' + ((accounts && accounts.error) || '無法載入帳號清單'));
     document.getElementById('simAccountSelect').innerHTML = '<option value="">-- 載入失敗，請重試 --</option>';
@@ -358,7 +358,7 @@ async function switchSimAccount(sel) {
 
 async function loadAccounts() {
   document.getElementById('accountList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
-  const accounts = await callGAS('apiGetAllAccounts', [lineUid]);
+  const accounts = await callGAS('apiGetAllAccounts', [lineUid, IS_TEST]);
   if (!accounts || accounts.error) {
     document.getElementById('accountList').innerHTML =
       `<div class="loading" style="color:#f44336">${(accounts && accounts.error) || '無法載入'}</div>`;
@@ -384,7 +384,7 @@ async function loadAccounts() {
 
 async function resetAccount(targetUid, name) {
   if (!confirm(`確認取消 ${name} 的帳號綁定？`)) return;
-  const result = await callGAS('apiResetAccount', [lineUid, targetUid]);
+  const result = await callGAS('apiResetAccount', [lineUid, targetUid, IS_TEST]);
   if (result.error) {
     showToast('❌ ' + result.error);
   } else {
@@ -397,7 +397,7 @@ async function resetAccount(targetUid, name) {
 
 async function loadLogs() {
   document.getElementById('logList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
-  const logs = await callGAS('apiGetLogs', [lineUid]);
+  const logs = await callGAS('apiGetLogs', [lineUid, IS_TEST]);
   if (!logs || logs.error) {
     document.getElementById('logList').innerHTML =
       `<div class="loading" style="color:#f44336">${(logs && logs.error) || '無法載入'}</div>`;

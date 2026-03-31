@@ -10,9 +10,8 @@
  */
 function exportScores(quarter, isTest) {
   const ss = _ss();
-  const sheetName = isTest ? '評分記錄_test' : '評分記錄';
-  const recordSheet = _sheet(sheetName);
-  if (!recordSheet) return { error: `工作表「${sheetName}」不存在` };
+  const recordSheet = _sheet('評分記錄');
+  if (!recordSheet) return { error: '工作表「評分記錄」不存在' };
   const recordData = recordSheet.getDataRange().getValues();
 
   // 收集所有已送出的評分
