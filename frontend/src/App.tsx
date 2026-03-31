@@ -9,7 +9,11 @@ import "./styles.css";
 
 /** Routes that require LINE authentication */
 function AuthenticatedRoutes() {
-  const { ready, error } = useLiff();
+  const { ready, needBind, error } = useLiff();
+
+  if (needBind) {
+    return <Navigate to="/bind" replace />;
+  }
 
   if (error) {
     return (

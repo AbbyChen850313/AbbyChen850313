@@ -25,6 +25,7 @@ declare global {
 
 export interface LiffState {
   ready: boolean;
+  needBind: boolean;
   error: string | null;
   lineUid: string | null;
   name: string | null;
@@ -48,6 +49,7 @@ function loadLiffSdk(): Promise<void> {
 export function useLiff(): LiffState {
   const [state, setState] = useState<LiffState>({
     ready: false,
+    needBind: false,
     error: null,
     lineUid: null,
     name: null,
@@ -99,9 +101,9 @@ export function useLiff(): LiffState {
     } catch (err: any) {
       const msg: string = err?.message ?? "初始化失敗";
 
-      // Account not bound → redirect to bind page
+      // Account not bound → signal to render <Navigate to="/bind">
       if (err?.response?.data?.needBind || err?.message === "帳號未綁定") {
-        window.location.href = "/bind";
+        setState((prev) => ({ ...prev, needBind: true }));
         return;
       }
 
