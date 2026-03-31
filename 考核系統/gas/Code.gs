@@ -191,6 +191,7 @@ function doPost(e) {
       apiExportExcel:         a => !!a[2],
       apiSaveDraft:           a => !!(a[0] && a[0].isTest),
       apiSubmitScore:         a => !!(a[0] && a[0].isTest),
+      apiCheckBinding:        a => !!a[1],
       apiBindByIdentity:      a => !!a[5],
       apiGetEmployeesForManager: a => !!a[1],
       apiSyncEmployees:       a => !!a[1],

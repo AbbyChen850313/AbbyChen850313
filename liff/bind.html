@@ -120,7 +120,7 @@ async function init() {
     document.getElementById('loadingStep').textContent = '查詢帳號狀態...';
     try {
       const check = await Promise.race([
-        callGAS('apiCheckBinding', [cachedUid]),
+        callGAS('apiCheckBinding', [cachedUid, IS_TEST]),
         new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
       ]);
       if (check && check.bound) {
@@ -152,7 +152,7 @@ async function init() {
 
     document.getElementById('loadingStep').textContent = '查詢帳號狀態...';
     const check = await Promise.race([
-      callGAS('apiCheckBinding', [lineUid]),
+      callGAS('apiCheckBinding', [lineUid, IS_TEST]),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
     ]).catch(() => null);
 
