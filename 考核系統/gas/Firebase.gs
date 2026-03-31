@@ -179,11 +179,12 @@ function fsSyncSettings() {
 }
 
 function fsSyncAccounts() {
-  const rows   = _sheetRows('LINE帳號');
-  const writes = [];
+  const rows       = _sheetRows('LINE帳號');
+  const prodWrites = [];
+  const testWrites = [];
   for (let i = 1; i < rows.length; i++) {
-    const uid     = String(rows[i][COL_ACCOUNT.UID]      || '').trim();
-    const testUid = String(rows[i][COL_ACCOUNT.TEST_UID] || '').trim();
+    const uid     = String(rows[i][COL_ACCOUNT.UID]         || '').trim();
+    const testUid = String(rows[i][COL_ACCOUNT.TEST_UID]    || '').trim();
     if (!uid) continue;
     const data = {
       name:        String(rows[i][COL_ACCOUNT.NAME]         || '').trim(),
@@ -191,13 +192,15 @@ function fsSyncAccounts() {
       jobTitle:    String(rows[i][COL_ACCOUNT.JOB_TITLE]    || '').trim(),
       role:        String(rows[i][COL_ACCOUNT.ROLE]         || '').trim(),
       status:      String(rows[i][COL_ACCOUNT.STATUS]       || '').trim(),
+      employeeId:  String(rows[i][COL_ACCOUNT.EMPLOYEE_ID]  || '').trim(),
     };
-    writes.push({ collection: 'accounts', docId: uid, data });
-    // 同步測試 UID（不同 Login Channel 的同一個人）
-    if (testUid) writes.push({ collection: 'accounts', docId: testUid, data });
+    // 正式 UID → accounts；測試 UID → test_accounts（環境隔離）
+    prodWrites.push({ collection: 'accounts',      docId: uid, data });
+    if (testUid) testWrites.push({ collection: 'test_accounts', docId: testUid, data });
   }
-  if (writes.length) fsBatchSet(writes);
-  Logger.log(`同步 accounts ${writes.length} 筆`);
+  if (prodWrites.length) fsBatchSet(prodWrites);
+  if (testWrites.length) fsBatchSet(testWrites);
+  _log('INFO', 'fsSyncAccounts', `同步完成`, { prod: prodWrites.length, test: testWrites.length });
 }
 
 function fsSyncEmployees() {
@@ -238,19 +241,22 @@ function fsSyncAllManagerDashboards() {
   const accounts = _sheetRows('LINE帳號');
   const quarter  = getCurrentQuarter();
   for (let i = 1; i < accounts.length; i++) {
-    const uid  = String(accounts[i][COL_ACCOUNT.UID] || '').trim();
-    const role = String(accounts[i][COL_ACCOUNT.ROLE] || '').trim();
-    if (!uid || role === 'HR' || role === '系統管理員') continue;
-    fsSyncManagerDashboard(uid, quarter);
+    const uid     = String(accounts[i][COL_ACCOUNT.UID]      || '').trim();
+    const testUid = String(accounts[i][COL_ACCOUNT.TEST_UID] || '').trim();
+    const role    = String(accounts[i][COL_ACCOUNT.ROLE]     || '').trim();
+    if (role === 'HR' || role === '系統管理員') continue;
+    if (uid)     fsSyncManagerDashboard(uid,     quarter, false);
+    if (testUid) fsSyncManagerDashboard(testUid, quarter, true);
   }
 }
 
-/** 計算並寫入單一主管的 dashboard snapshot */
-function fsSyncManagerDashboard(managerUid, quarter) {
+/** 計算並寫入單一主管的 dashboard snapshot（isTest=true 時寫入 test_managerDashboard） */
+function fsSyncManagerDashboard(managerUid, quarter, isTest) {
   const info = getManagerInfo(managerUid);
   if (!info || info.isHR || info.isSysAdmin) return;
-  const status = getScoreStatus(info, quarter || getCurrentQuarter());
-  fsSet('managerDashboard', managerUid, {
+  const status     = getScoreStatus(info, quarter || getCurrentQuarter());
+  const collection = isTest ? 'test_managerDashboard' : 'managerDashboard';
+  fsSet(collection, managerUid, {
     quarter:     status.quarter,
     total:       status.total,
     scored:      status.scored,

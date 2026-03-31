@@ -3,15 +3,22 @@
 // ============================================================
 
 const CONFIG = {
-  SPREADSHEET_ID: '1VKHfnnrv-xfdqj-36I6grY8K-YcuCd8WMIcNAvRA_eg',
+  SPREADSHEET_ID:    '1VKHfnnrv-xfdqj-36I6grY8K-YcuCd8WMIcNAvRA_eg',
   HR_SPREADSHEET_ID: '1hOBSm5BnCjsrp2rX51EN5kYVtEgLZ8FVIMF90_5BMqA',
-  // 正式 Messaging Channel（2009611318）的 Bot Token
-  LINE_BOT_TOKEN: 'vC9j7A61kp6mlsd450SyLzHMmFB4fzF0piR/5skfHn4dDjGRSZU39pA72441l2gYKx6WSpFt+K63v87uF+KiKuPOe3yvqDeG4b5SQRAsJLm2nbauVyFwtb7b7azpw2Sdpd0xtxcEyFN3/OFrpiU0dAdB04t89/1O/w1cDnyilFU=',
-  // 測試 Messaging Channel（2008337190）的 Bot Token
-  LINE_BOT_TOKEN_TEST: '3nqiobdCVPhomyttwLtvGdaW37UE/hUXI9jICkGWJv5Vo2EMbzAGR61pVu5nj9/O2yjRVzC8+1amRpgPxtv431/mYTzZh20qQ/Z4M1nKSekcp1GNgPanrKgmq+ocQT6DTi9E9wot4P13uFr1R4bESQdB04t89/1O/w1cDnyilFU=',
-  LIFF_ID:      '2009611318-5UphK9JK',  // 正式
-  LIFF_ID_TEST: '2009619528-aJO34c6u',  // 測試
+  // Token 存於 Script Properties（不放 code）
+  // 初次設定請執行 apiBootstrapLineTokens 端點
+  get LINE_BOT_TOKEN()      { return _getRequiredProp('LINE_BOT_TOKEN'); },
+  get LINE_BOT_TOKEN_TEST() { return _getRequiredProp('LINE_BOT_TOKEN_TEST'); },
+  LIFF_ID:      '2009611318-5UphK9JK',
+  LIFF_ID_TEST: '2009619528-aJO34c6u',
 };
+
+/** 讀取必要的 Script Property，未設定時拋明確錯誤 */
+function _getRequiredProp(key) {
+  const val = PropertiesService.getScriptProperties().getProperty(key);
+  if (!val) throw new Error(`Script Property '${key}' 未設定，請執行 setupLineTokens() 或呼叫 apiBootstrapLineTokens`);
+  return val;
+}
 
 // ============================================================
 // Sheets 存取 Helper（所有 .gs 檔案共用）

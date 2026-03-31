@@ -17,6 +17,7 @@ const COL_ACCOUNT = {
   ROLE:         7,  // H 角色（系統管理員/HR/主管/同仁）
   CLEAR:        8,  // I 清除帳號（checkbox，放最後避免誤觸）
   TEST_UID:     9,  // J 測試環境 LINE_UID（不同 Login Channel）
+  EMPLOYEE_ID: 10,  // K 員工編號（防止同名員工比對錯誤）
 };
 
 // ============================================================
@@ -135,23 +136,23 @@ function apiBindByIdentity(lineUid, displayName, name, employeeId, phone, isTest
 
     if (isTest) {
       // 測試環境：優先寫入同名正式帳號的 TEST_UID 欄；找不到就直接建新帳號
-      const linked = _linkTestUid(employee.name, lineUid, role);
+      const linked = _linkTestUid(employee.name, employee.employeeId, lineUid, role);
       if (!linked) {
-        _upsertAccount(lineUid, displayName, employee.name, employee.jobTitle, phone, role);
+        _upsertAccount(lineUid, displayName, employee.name, employee.jobTitle, phone, role, employee.employeeId);
         _updateWeightUid(employee.jobTitle, lineUid, employee.name);
       }
       switchRichMenuByRole(lineUid, role);
       _log('INFO', 'apiBindByIdentity', `測試 UID 綁定：${employee.name}`, { testUid: lineUid });
-      try { fsSyncAccounts(); } catch (_) {}
+      try { fsSyncAccounts(); } catch (e) { _log('WARN', 'apiBindByIdentity', 'Firestore sync 失敗(test)', e.message); }
       return { success: true, name: employee.name, jobTitle: employee.jobTitle, role: linked ? linked.role : role };
     }
 
-    _upsertAccount(lineUid, displayName, employee.name, employee.jobTitle, phone, role);
+    _upsertAccount(lineUid, displayName, employee.name, employee.jobTitle, phone, role, employee.employeeId);
     _updateWeightUid(employee.jobTitle, lineUid, employee.name);
     switchRichMenuByRole(lineUid, role);
 
     _log('INFO', 'apiBindByIdentity', `綁定成功：${employee.name}`, { jobTitle: employee.jobTitle });
-    try { fsSyncAccounts(); } catch (_) {}
+    try { fsSyncAccounts(); } catch (e) { _log('WARN', 'apiBindByIdentity', 'Firestore sync 失敗(prod)', e.message); }
     return {
       success: true,
       name:      employee.name,
@@ -165,15 +166,20 @@ function apiBindByIdentity(lineUid, displayName, name, employeeId, phone, isTest
   }
 }
 
-/** 找到同姓名的正式帳號，把測試 UID 寫入 J 欄，同時更新角色 */
-function _linkTestUid(name, testUid, newRole) {
+/** 找到同姓名+員工編號的正式帳號，把測試 UID 寫入 J 欄，同時更新角色與員工編號 */
+function _linkTestUid(name, employeeId, testUid, newRole) {
   const accountSheet = _sheet('LINE帳號');
   const rows = _sheetRows('LINE帳號');
   for (let i = 1; i < rows.length; i++) {
-    const rowName = String(rows[i][COL_ACCOUNT.NAME] || '').trim();
-    if (rowName === name) {
-      accountSheet.getRange(i + 1, COL_ACCOUNT.TEST_UID + 1).setValue(testUid);
-      if (newRole) accountSheet.getRange(i + 1, COL_ACCOUNT.ROLE + 1).setValue(newRole);
+    const rowName       = String(rows[i][COL_ACCOUNT.NAME]        || '').trim();
+    const rowEmployeeId = String(rows[i][COL_ACCOUNT.EMPLOYEE_ID] || '').trim();
+    // 姓名必須匹配；有員工編號時雙重比對防同名
+    const nameMatch = rowName === name;
+    const idMatch   = !employeeId || !rowEmployeeId || rowEmployeeId === employeeId;
+    if (nameMatch && idMatch) {
+      accountSheet.getRange(i + 1, COL_ACCOUNT.TEST_UID    + 1).setValue(testUid);
+      if (newRole)     accountSheet.getRange(i + 1, COL_ACCOUNT.ROLE        + 1).setValue(newRole);
+      if (employeeId)  accountSheet.getRange(i + 1, COL_ACCOUNT.EMPLOYEE_ID + 1).setValue(employeeId);
       return { role: newRole || String(rows[i][COL_ACCOUNT.ROLE] || '').trim() };
     }
   }
@@ -203,20 +209,23 @@ function apiRefreshAllRoles(lineUid) {
   const auth = _verifySysAdmin(lineUid);
   if (auth.error) return auth;
   const updated = _refreshAllRoles();
-  try { fsSyncAccounts(); } catch (_) {}
+  try { fsSyncAccounts(); } catch (e) { _log('WARN', 'apiRefreshAllRoles', 'Firestore sync 失敗', e.message); }
   return { success: true, updatedCount: updated };
 }
 
-/** 重新計算所有已授權帳號角色，回傳更新筆數 */
+/** 重新計算所有已授權帳號角色，回傳更新筆數（HR Sheet 只讀一次） */
 function _refreshAllRoles() {
+  const hrIndex     = _buildHrEmployeeIndex();
   const accountSheet = _sheet('LINE帳號');
-  const rows = _sheetRows('LINE帳號');
+  const rows         = _sheetRows('LINE帳號');
   let updated = 0;
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][COL_ACCOUNT.STATUS] !== '已授權') continue;
-    const name = String(rows[i][COL_ACCOUNT.NAME] || '').trim();
+    const name       = String(rows[i][COL_ACCOUNT.NAME]        || '').trim();
+    const employeeId = String(rows[i][COL_ACCOUNT.EMPLOYEE_ID] || '').trim();
     if (!name) continue;
-    const employee = _findEmployeeByName(name);
+    // 優先以員工編號查（精確）；找不到再以姓名查（向下相容舊資料）
+    const employee = hrIndex[employeeId] || hrIndex[name];
     if (!employee) continue;
     const newRole     = _deriveRole(employee.titleCategory, employee.employeeId);
     const currentRole = String(rows[i][COL_ACCOUNT.ROLE] || '').trim();
@@ -228,25 +237,23 @@ function _refreshAllRoles() {
   return updated;
 }
 
-/**
- * 以姓名查詢 HR Sheet（唯讀）
- * @returns {{ name, employeeId, jobTitle, titleCategory }} 或 null
- */
-function _findEmployeeByName(name) {
+/** 一次讀取 HR Sheet，建立員工編號和姓名雙鍵索引 */
+function _buildHrEmployeeIndex() {
   const hrSheet = SpreadsheetApp.openById(CONFIG.HR_SPREADSHEET_ID)
     .getSheetByName('(人工打)總表');
-  const data = hrSheet.getDataRange().getValues();
+  const data  = hrSheet.getDataRange().getValues();
+  const index = {};
   for (let i = 1; i < data.length; i++) {
-    if (String(data[i][4]).trim() === name) {
-      return {
-        name:          String(data[i][4]).trim(),
-        employeeId:    String(data[i][2]).trim(),
-        jobTitle:      String(data[i][12]).trim(),
-        titleCategory: String(data[i][14]).trim(),
-      };
-    }
+    const employeeId    = String(data[i][2]).trim();
+    const name          = String(data[i][4]).trim();
+    const jobTitle      = String(data[i][12]).trim();
+    const titleCategory = String(data[i][14]).trim();
+    if (!employeeId && !name) continue;
+    const entry = { name, employeeId, jobTitle, titleCategory };
+    if (employeeId)           index[employeeId] = entry;
+    if (name && !index[name]) index[name]       = entry; // 姓名作為回退鍵
   }
-  return null;
+  return index;
 }
 
 /**
@@ -284,17 +291,18 @@ function _findEmployeeByIdentity(name, employeeId) {
  * 新增或更新 LINE帳號 紀錄
  * @param {string} role - 'HR'|'主管'|'同仁'|'系統管理員'（由 _deriveRole 判定）
  */
-function _upsertAccount(lineUid, displayName, name, jobTitle, phone, role) {
+function _upsertAccount(lineUid, displayName, name, jobTitle, phone, role, employeeId) {
   const accountSheet = _sheet('LINE帳號');
   const rows = _sheetRows('LINE帳號');
 
   for (let i = 1; i < rows.length; i++) {
     if (rows[i][COL_ACCOUNT.UID] === lineUid) {
-      accountSheet.getRange(i + 1, COL_ACCOUNT.NAME     + 1).setValue(name);
-      accountSheet.getRange(i + 1, COL_ACCOUNT.STATUS   + 1).setValue('已授權');
-      accountSheet.getRange(i + 1, COL_ACCOUNT.JOB_TITLE+ 1).setValue(jobTitle);
-      accountSheet.getRange(i + 1, COL_ACCOUNT.PHONE    + 1).setValue(phone || '');
-      if (role) accountSheet.getRange(i + 1, COL_ACCOUNT.ROLE + 1).setValue(role);
+      accountSheet.getRange(i + 1, COL_ACCOUNT.NAME      + 1).setValue(name);
+      accountSheet.getRange(i + 1, COL_ACCOUNT.STATUS    + 1).setValue('已授權');
+      accountSheet.getRange(i + 1, COL_ACCOUNT.JOB_TITLE + 1).setValue(jobTitle);
+      accountSheet.getRange(i + 1, COL_ACCOUNT.PHONE     + 1).setValue(phone || '');
+      if (role)       accountSheet.getRange(i + 1, COL_ACCOUNT.ROLE        + 1).setValue(role);
+      if (employeeId) accountSheet.getRange(i + 1, COL_ACCOUNT.EMPLOYEE_ID + 1).setValue(employeeId);
       return;
     }
   }
@@ -302,8 +310,8 @@ function _upsertAccount(lineUid, displayName, name, jobTitle, phone, role) {
   const newRow = accountSheet.getLastRow() + 1;
   // G欄（電話）設為文字格式，防止開頭 0 被吃掉
   accountSheet.getRange(newRow, COL_ACCOUNT.PHONE + 1).setNumberFormat('@');
-  // 欄位順序：姓名, UID, 顯示名稱, 綁定時間, 狀態, 職稱, 電話, 角色, 清除帳號
-  accountSheet.appendRow([name, lineUid, displayName, new Date(), '已授權', jobTitle, phone || '', role || '', false]);
+  // 欄位順序：姓名, UID, 顯示名稱, 綁定時間, 狀態, 職稱, 電話, 角色, 清除帳號, 測試UID, 員工編號
+  accountSheet.appendRow([name, lineUid, displayName, new Date(), '已授權', jobTitle, phone || '', role || '', false, '', employeeId || '']);
 
   // checkbox
   const checkboxCell = accountSheet.getRange(newRow, COL_ACCOUNT.CLEAR + 1);
