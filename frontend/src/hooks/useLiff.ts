@@ -95,7 +95,7 @@ export function useLiff(): LiffState {
       const msg: string = err?.message ?? "初始化失敗";
 
       // Account not bound → redirect to bind page
-      if (err?.response?.data?.needBind) {
+      if (err?.response?.data?.needBind || err?.message === "帳號未綁定") {
         window.location.href = "/bind";
         return;
       }

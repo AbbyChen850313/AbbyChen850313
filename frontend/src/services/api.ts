@@ -6,6 +6,8 @@
 import axios from "axios";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
+const IS_TEST = import.meta.env.VITE_IS_TEST === "true";
+const SESSION_KEY = IS_TEST ? "session_token_test" : "session_token";
 
 export const api = axios.create({
   baseURL: BASE_URL,
@@ -14,7 +16,7 @@ export const api = axios.create({
 
 // Inject JWT on every request
 api.interceptors.request.use((req) => {
-  const token = localStorage.getItem("session_token");
+  const token = localStorage.getItem(SESSION_KEY);
   if (token) {
     req.headers.Authorization = `Bearer ${token}`;
   }
