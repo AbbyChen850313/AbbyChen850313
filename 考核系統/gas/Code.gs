@@ -565,7 +565,8 @@ function _handleLineWebhook(events) {
 
     // ── 低風險：直接執行 ──────────────────────────────────────
     } else if (text === '設定' || text === '綁定設定') {
-      _lineReply(replyToken, `請點以下連結進行帳號綁定：\nhttps://liff.line.me/${getActiveEnv().liffId}`);
+      const _today = Utilities.formatDate(new Date(), 'Asia/Taipei', 'yyyyMMdd');
+      _lineReply(replyToken, `請點以下連結進行帳號綁定：\nhttps://liff.line.me/${getActiveEnv().liffId}?v=${_today}`);
 
     } else if (text === '主管') {
       const richMenuId = settings['RichMenu_C1'];
