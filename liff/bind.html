@@ -24,7 +24,27 @@
   <strong>錯誤：</strong><span id="errorMsg"></span>
 </div>
 
-<!-- 輸入表單 -->
+<!-- 驗證碼畫面（未綁定者必須先通過此關卡） -->
+<div id="verifyView" style="display:none">
+  <div class="score-section" style="margin:12px 8px">
+    <div class="setting-group">
+      <input type="text" class="setting-input" id="inputVerifyCode"
+        placeholder="請輸入驗證碼"
+        autocomplete="off"
+        style="letter-spacing:4px;font-size:18px;text-align:center"
+        onkeydown="if(event.key==='Enter') doVerifyCode()">
+    </div>
+    <p style="font-size:12px;color:#aaa;text-align:center;margin:4px 0 12px">（僅工作人員輸入）</p>
+    <div style="display:flex;gap:8px">
+      <button class="btn" style="flex:1;padding:14px;background:#eee;color:#555"
+        onclick="doCancel()">取消</button>
+      <button class="btn btn-submit" id="verifyBtn" style="flex:2;padding:14px"
+        onclick="doVerifyCode()">確認</button>
+    </div>
+  </div>
+</div>
+
+<!-- 員工資料表單（驗證碼通過後才顯示） -->
 <div id="formView" style="display:none">
   <div class="score-section" style="margin:12px 8px">
     <div class="section-title">請輸入員工資料</div>
@@ -50,18 +70,6 @@
   </div>
 </div>
 
-<!-- 已綁定畫面 -->
-<div id="alreadyBoundView" style="display:none">
-  <div style="padding:40px 20px;text-align:center">
-    <div style="font-size:56px;margin-bottom:16px">✅</div>
-    <div style="font-size:18px;font-weight:bold;margin-bottom:8px">帳號已綁定</div>
-    <div style="font-size:14px;color:#555;margin-bottom:24px" id="alreadyBoundName"></div>
-    <button class="btn btn-submit" style="width:80%;padding:14px" onclick="goToDashboard(_userRole)">
-      進入考核系統
-    </button>
-  </div>
-</div>
-
 <!-- 綁定成功畫面 -->
 <div id="successView" style="display:none">
   <div style="padding:40px 20px;text-align:center">
@@ -71,7 +79,7 @@
     <div style="font-size:13px;color:#888;margin-bottom:24px">
       您的帳號已完成綁定，即可開始使用。
     </div>
-    <button class="btn btn-submit" style="width:80%;padding:14px" onclick="goToDashboard()">
+    <button class="btn btn-submit" style="width:80%;padding:14px" onclick="goToDashboard(_boundRole)">
       進入考核系統
     </button>
   </div>
@@ -90,18 +98,25 @@ const LS_UID  = IS_TEST ? 'liff_uid_test' : 'liff_uid';
 const LIFF_ID = IS_TEST ? LIFF_ID_TEST : LIFF_ID_PROD;
 let lineUid = '';
 let displayName = '';
-let liffReady = false;
-let _userRole = '';
+let _boundRole = '';
 
-function showForm() {
-  document.getElementById('loadingView').style.display = 'none';
-  document.getElementById('formView').style.display = 'block';
-}
+function _hide(id) { document.getElementById(id).style.display = 'none'; }
+function _show(id, display) { document.getElementById(id).style.display = display || 'block'; }
 
 function showError(msg) {
-  document.getElementById('loadingView').style.display = 'none';
+  _hide('loadingView');
   document.getElementById('errorMsg').textContent = msg;
-  document.getElementById('errorView').style.display = 'block';
+  _show('errorView');
+}
+
+function showVerifyView() {
+  _hide('loadingView');
+  _show('verifyView');
+}
+
+function showForm() {
+  _hide('verifyView');
+  _show('formView');
 }
 
 async function init() {
@@ -122,7 +137,7 @@ async function init() {
     } catch (_) { /* 查詢失敗就繼續走 LIFF */ }
   }
 
-  // 沒快取或未綁定 → 走 LIFF 流程（背景也更新 UID）
+  // 沒快取或未綁定 → 走 LIFF 流程
   try {
     document.getElementById('loadingStep').textContent = 'LIFF 初始化...';
     await Promise.race([
@@ -138,12 +153,9 @@ async function init() {
     const profile = await liff.getProfile();
     lineUid = profile.userId;
     displayName = profile.displayName;
-    liffReady = true;
 
-    // 若快取 UID 與 LIFF 不同，更新快取
     if (lineUid !== cachedUid) localStorage.setItem(LS_UID, lineUid);
 
-    // LIFF 取得後再查一次（防止快取 UID 過期）
     document.getElementById('loadingStep').textContent = '查詢帳號狀態...';
     const check = await Promise.race([
       callGAS('apiCheckBinding', [lineUid]),
@@ -151,33 +163,66 @@ async function init() {
     ]).catch(() => null);
 
     if (check && check.bound) {
-      _userRole = check.role || '';
-      goToDashboard(_userRole);
+      goToDashboard(check.role);
       return;
     }
 
-    document.getElementById('loadingView').style.display = 'none';
-    document.getElementById('formView').style.display = 'block';
+    // 未綁定 → 顯示驗證碼畫面
+    showVerifyView();
   } catch (err) {
-    // LIFF 失敗但有快取 UID → 直接顯示表單（送出時再處理）
     if (cachedUid) {
       lineUid = cachedUid;
-      showForm();
+      showVerifyView();
     } else {
       showError(err.message);
     }
   }
 }
 
-async function doBindByIdentity() {
-  const name = document.getElementById('inputName').value.trim();
-  const employeeId = document.getElementById('inputEmployeeId').value.trim();
-  const phone = document.getElementById('inputPhone').value.trim();
+async function doVerifyCode() {
+  const code = document.getElementById('inputVerifyCode').value.trim();
+  if (!code) { showToast('請輸入驗證碼'); return; }
 
-  if (!name) { showToast('請填入姓名'); return; }
+  const btn = document.getElementById('verifyBtn');
+  btn.disabled = true;
+  btn.textContent = '驗證中...';
+
+  try {
+    const result = await Promise.race([
+      callGAS('apiVerifyBindCode', [code]),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
+    ]);
+
+    if (result && result.valid) {
+      showForm();
+    } else {
+      showToast('❌ 驗證碼錯誤');
+    }
+  } catch (_) {
+    showToast('驗證失敗，請重試');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '確認';
+  }
+}
+
+function doCancel() {
+  if (typeof liff !== 'undefined' && liff.closeWindow) {
+    liff.closeWindow();
+  } else {
+    history.back();
+  }
+}
+
+async function doBindByIdentity() {
+  const name       = document.getElementById('inputName').value.trim();
+  const employeeId = document.getElementById('inputEmployeeId').value.trim();
+  const phone      = document.getElementById('inputPhone').value.trim();
+
+  if (!name)       { showToast('請填入姓名'); return; }
   if (!employeeId) { showToast('請填入員工編號'); return; }
-  if (!phone) { showToast('請填入手機號碼'); return; }
-  if (!lineUid) { showToast('LINE 身分未取得，請稍後再試'); return; }
+  if (!phone)      { showToast('請填入手機號碼'); return; }
+  if (!lineUid)    { showToast('LINE 身分未取得，請稍後再試'); return; }
 
   const btn = event.target;
   btn.disabled = true;
@@ -193,10 +238,11 @@ async function doBindByIdentity() {
     return;
   }
 
+  _boundRole = result.role || '';
   document.getElementById('successName').textContent = `您好，${result.name}！`;
-  document.getElementById('formView').style.display = 'none';
-  document.getElementById('successView').style.display = 'block';
-  setTimeout(() => goToDashboard(result.role), 1500); // 1.5 秒後自動跳轉
+  _hide('formView');
+  _show('successView');
+  setTimeout(() => goToDashboard(_boundRole), 1500);
 }
 
 function goToDashboard(role) {

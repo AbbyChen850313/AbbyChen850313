@@ -155,6 +155,7 @@ function doPost(e) {
       apiGetManagerDashboard,
       apiGetDashboard,
       apiRefreshAllRoles,
+      apiVerifyBindCode,
     };
     if (!API[action]) {
       _log('WARN', 'doPost', `未知 action: ${action}`);

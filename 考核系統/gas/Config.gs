@@ -99,6 +99,22 @@ function enableTestChannel() {
   Logger.log('✅ 已設定使用測試Channel = true');
 }
 
+/**
+ * 驗證綁定驗證碼（無需身份驗證，用於 bind.html 驗證碼關卡）
+ * 驗證碼存於 系統設定['綁定驗證碼']，由 HR/sysadmin 在後台管理
+ * @param {string} code 使用者輸入的驗證碼
+ */
+function apiVerifyBindCode(code) {
+  if (!code || !code.trim()) return { valid: false };
+  let storedCode = String(getSettings()['綁定驗證碼'] || '').trim();
+  // 首次使用：自動寫入預設驗證碼，管理員可在後台系統設定中修改
+  if (!storedCode) {
+    storedCode = 'HR0000';
+    updateSettings({ '綁定驗證碼': storedCode });
+  }
+  return { valid: code.trim() === storedCode };
+}
+
 
 /**
  * 初始化系統設定工作表（首次使用時呼叫）
