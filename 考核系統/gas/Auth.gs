@@ -145,12 +145,11 @@ function apiBindByIdentity(lineUid, displayName, name, employeeId, phone, isTest
     // _REQUEST_IS_TEST 已由 doPost() 依 isTest 參數設定，_ss() 自動路由到正確 Spreadsheet
     _upsertAccount(lineUid, displayName, employee.name, employee.jobTitle, phone, role, employee.employeeId);
     _updateWeightUid(employee.jobTitle, lineUid, employee.name);
-    switchRichMenuByRole(lineUid, role);
 
     _log('INFO', 'apiBindByIdentity',
       `${_isTestRequest() ? '[TEST] ' : ''}綁定成功：${employee.name}`,
       { jobTitle: employee.jobTitle });
-    try { fsSyncAccounts(); } catch (e) { _log('WARN', 'apiBindByIdentity', 'Firestore sync 失敗', e.message); }
+    _emit('account.bound', { lineUid, name: employee.name, jobTitle: employee.jobTitle, role });
     return {
       success: true,
       name:      employee.name,
@@ -389,9 +388,7 @@ function apiResetAccount(hrLineUid, targetLineUid) {
     }
   }
 
-  const settings = getSettings();
-  const richMenuA = settings['RichMenu_A'];
-  if (richMenuA) _linkRichMenuToUser(targetLineUid, richMenuA);
+  _emit('account.unbound', { lineUid: targetLineUid });
 
   return { success: true };
 }
@@ -491,12 +488,8 @@ function resetAccountForTesting(lineUid) {
     }
   }
 
-  // 3. 切回公開選單 A
-  const settings = getSettings();
-  const richMenuA = settings['RichMenu_A'];
-  if (richMenuA) {
-    _linkRichMenuToUser(lineUid, richMenuA);
-  }
+  // 3. 觸發解除綁定事件（切回公開選單等）
+  _emit('account.unbound', { lineUid });
 
   Logger.log(`✅ 已重置帳號：${lineUid}`);
 }

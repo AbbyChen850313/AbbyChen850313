@@ -334,8 +334,7 @@ function _handleLiffBindAction(params) {
             if (data[i][1] === uid) accountSheet.deleteRow(i + 1);
           }
         }
-        const richMenuA = getSettings()['RichMenu_A'];
-        if (richMenuA) _linkRichMenuToUser(uid, richMenuA);
+        _emit('account.unbound', { lineUid: uid });
         result = { success: true };
       }
 
@@ -617,8 +616,7 @@ function _handleLineWebhook(events) {
             deleted = true;
           }
         }
-        const richMenuA = settings['RichMenu_A'];
-        if (richMenuA) _linkRichMenuToUser(uid, richMenuA);
+        _emit('account.unbound', { lineUid: uid });
         if (deleted) {
           _log('INFO', '取消綁定', `帳號已解除：${deletedName}`, { uid: '…' + uid.slice(-4) });
         } else {

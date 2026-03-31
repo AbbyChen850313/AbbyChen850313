@@ -94,17 +94,11 @@ function _writeScore(data, isSubmitted) {
 
   _log('INFO', '_writeScore', `${_isTestRequest() ? '[TEST] ' : ''}${managerName} → ${employeeName} ${isSubmitted ? '送出' : '草稿'}`, { quarter, weightedScore });
 
-  // 同步到 Firestore（失敗時記錄 WARN，不影響主流程）
-  try {
-    fsSyncScore(quarter, data.lineUid, employeeName, {
-      managerName, section, scores, note: note || '',
-      rawScore, finalScore, weightedScore,
-      status: isSubmitted ? '已送出' : '草稿',
-    }, _isTestRequest());
-    fsSyncManagerDashboard(data.lineUid, quarter, _isTestRequest());
-  } catch (e) {
-    _log('WARN', '_writeScore', 'Firestore 同步失敗', e && e.message);
-  }
+  _emit('score.saved', {
+    quarter, managerUid: data.lineUid, managerName, empName: employeeName,
+    section, scores, note: note || '', rawScore, finalScore, weightedScore,
+    status: isSubmitted ? '已送出' : '草稿',
+  });
 
   return {
     success: true,
