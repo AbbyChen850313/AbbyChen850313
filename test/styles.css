@@ -345,3 +345,37 @@ select {
   outline: none;
 }
 select option { background: #3d1a7a; color: white; }
+
+/* ── Tab bar ── */
+.tab-bar {
+  display: flex;
+  background: rgba(0,0,0,0.2);
+  border-bottom: 1px solid var(--divider);
+  padding: 0 8px;
+}
+.tab-btn {
+  flex: 1;
+  padding: 12px 2px;
+  border: none;
+  background: none;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: bold;
+}
+
+/* ── List card (dynamically generated rows) ── */
+.list-card {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  backdrop-filter: blur(6px);
+}
