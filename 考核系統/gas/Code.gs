@@ -418,16 +418,16 @@ function apiUpdateSettings(lineUid, newSettings) {
   return result;
 }
 
-function apiTriggerReminders(lineUid) {
+function apiTriggerReminders(lineUid, isTest) {
   const info = _verifyHROrSysAdmin(lineUid);
   if (info.error) return info;
-  return sendReminderToAll(getCurrentQuarter());
+  return sendReminderToAll(getCurrentQuarter(), !!isTest);
 }
 
-function apiExportExcel(lineUid, quarter) {
+function apiExportExcel(lineUid, quarter, isTest) {
   const info = _verifyHROrSysAdmin(lineUid);
   if (info.error) return info;
-  return exportScores(quarter || getCurrentQuarter());
+  return exportScores(quarter || getCurrentQuarter(), !!isTest);
 }
 
 /** HR 或系統管理員以指定主管 UID 查看其儀表板（員工列表＋評分狀態） */

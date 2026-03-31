@@ -39,18 +39,21 @@ function sendReminder(lineUid, message) {
 /**
  * 對所有尚未完成評分的主管發送提醒
  * @param {string} quarter
+ * @param {boolean} [isTest=false]
  */
-function sendReminderToAll(quarter) {
+function sendReminderToAll(quarter, isTest) {
   const settings = getSettings();
   const deadline = settings['評分截止日'];
   const period = settings['評分期間描述'];
 
-  const allStatus = getAllManagerStatus(quarter);
+  const allStatus = getAllManagerStatus(quarter, !!isTest);
   let sent = 0;
 
   for (const status of allStatus) {
     if (status.pending <= 0) continue;
-    if (!status.lineUid) continue;
+    // 測試環境優先用 testUid；正式環境用 lineUid
+    const targetUid = isTest ? (status.testUid || status.lineUid) : status.lineUid;
+    if (!targetUid) continue;
 
     const message =
       `📋 考核評分提醒\n\n` +
@@ -60,7 +63,7 @@ function sendReminderToAll(quarter) {
       `截止日：${deadline}\n\n` +
       `請盡快完成評分，謝謝！`;
 
-    sendReminder(status.lineUid, message);
+    sendReminder(targetUid, message);
     sent++;
     Utilities.sleep(200); // 避免 LINE API 速率限制
   }
@@ -100,7 +103,8 @@ function scheduledReminder() {
 
   if (today === notify1 || today === notify2) {
     const quarter = settings['當前季度'] || getCurrentQuarter();
-    sendReminderToAll(quarter);
-    Logger.log(`[${today}] 已發送提醒通知`);
+    const isTest  = settings['使用測試Channel'] === 'true' || settings['使用測試Channel'] === true;
+    sendReminderToAll(quarter, isTest);
+    Logger.log(`[${today}] 已發送提醒通知（${isTest ? '測試' : '正式'}環境）`);
   }
 }

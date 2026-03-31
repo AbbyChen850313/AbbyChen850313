@@ -165,7 +165,7 @@ async function loadProgress() {
 
 async function triggerReminder() {
   if (!confirm('確認發送提醒通知給所有未完成的主管？')) return;
-  const result = await callGAS('apiTriggerReminders', [lineUid]);
+  const result = await callGAS('apiTriggerReminders', [lineUid, IS_TEST]);
   showToast(result.error ? '❌ ' + result.error : `✅ 已通知 ${result.notifiedCount} 位主管`);
 }
 
@@ -208,7 +208,7 @@ async function doExport() {
   const quarter = document.getElementById('exportQuarter').value.trim();
   if (!quarter) { showToast('請填寫季度'); return; }
   document.getElementById('exportResult').innerHTML = '<div class="loading"><div class="spinner"></div>匯出中...</div>';
-  const result = await callGAS('apiExportExcel', [lineUid, quarter]);
+  const result = await callGAS('apiExportExcel', [lineUid, quarter, IS_TEST]);
   document.getElementById('exportResult').innerHTML = result.error
     ? `<div style="color:#f44336">${result.error}</div>`
     : `<div style="color:#2e7d32;margin-bottom:8px">✅ ${result.message}</div>

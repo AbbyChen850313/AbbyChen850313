@@ -278,7 +278,7 @@ function fsSyncAllManagerDashboards() {
 function fsSyncManagerDashboard(managerUid, quarter, isTest) {
   const info = getManagerInfo(managerUid);
   if (!info || info.isHR || info.isSysAdmin) return;
-  const status     = getScoreStatus(info, quarter || getCurrentQuarter());
+  const status     = getScoreStatus(info, quarter || getCurrentQuarter(), !!isTest);
   const collection = isTest ? 'test_managerDashboard' : 'managerDashboard';
   fsSet(collection, managerUid, {
     quarter:     status.quarter,

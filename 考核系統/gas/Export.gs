@@ -4,13 +4,15 @@
 
 /**
  * 匯出指定季度的評分結果到新的 Google Sheet，並回傳連結
- * 包含：原始分數、加權分數、最終加權總分、等級
  * @param {string} quarter - 如 "115Q1"
+ * @param {boolean} [isTest=false]
  * @returns {Object} { success, url, message }
  */
-function exportScores(quarter) {
+function exportScores(quarter, isTest) {
   const ss = _ss();
-  const recordSheet = ss.getSheetByName('評分記錄');
+  const sheetName = isTest ? '評分記錄_test' : '評分記錄';
+  const recordSheet = _sheet(sheetName);
+  if (!recordSheet) return { error: `工作表「${sheetName}」不存在` };
   const recordData = recordSheet.getDataRange().getValues();
 
   // 收集所有已送出的評分
@@ -21,8 +23,8 @@ function exportScores(quarter) {
     }
   }
 
-  // 建立新工作表或覆蓋
-  const exportSheetName = `匯出_${quarter}`;
+  // 建立新工作表或覆蓋（測試環境加前綴，避免汙染正式匯出）
+  const exportSheetName = isTest ? `匯出_TEST_${quarter}` : `匯出_${quarter}`;
   let exportSheet = ss.getSheetByName(exportSheetName);
   if (!exportSheet) {
     exportSheet = ss.insertSheet(exportSheetName);
@@ -62,7 +64,7 @@ function exportScores(quarter) {
 
   for (const key of empSet) {
     const [section, name] = key.split('|');
-    const result = calcWeightedScore(name, quarter);
+    const result = calcWeightedScore(name, quarter, isTest);
     if (result) {
       exportSheet.appendRow([section, name, result.totalScore, result.grade]);
     }

@@ -140,13 +140,15 @@ function calcRawScore(scores) {
 
 /**
  * 計算某員工某季度的加權總分（彙整所有主管的評分）
- * 財務科特殊邏輯：業務人員分數先取平均，再 × 30%
  * @param {string} employeeName
  * @param {string} quarter
+ * @param {boolean} [isTest=false]
  * @returns {Object} { totalScore, grade, managerScores }
  */
-function calcWeightedScore(employeeName, quarter) {
-  const sheet = _sheet('評分記錄');
+function calcWeightedScore(employeeName, quarter, isTest) {
+  const sheetName = isTest ? '評分記錄_test' : '評分記錄';
+  const sheet = _sheet(sheetName);
+  if (!sheet) return null;
   const data = sheet.getDataRange().getValues();
 
   // 找所有已送出的評分
@@ -277,10 +279,12 @@ function getAllManagerStatus(quarter, isTest) {
     const managerInfo = getManagerInfo(uid);
     if (!managerInfo) continue;
 
+    const testUid     = String(accountData[i][COL_ACCOUNT.TEST_UID] || '').trim();
     const scoreStatus = getScoreStatus(managerInfo, quarter, !!isTest);
     result.push({
       managerName: name,
       lineUid: uid,
+      testUid,
       total: scoreStatus.total,
       scored: scoreStatus.scored,
       pending: scoreStatus.pending,
