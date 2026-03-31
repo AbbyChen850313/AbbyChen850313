@@ -68,7 +68,12 @@ export function useLiff(): LiffState {
 
       // 2. Fresh LIFF init
       await loadLiffSdk();
-      await window.liff.init({ liffId: LIFF_ID });
+      await Promise.race([
+        window.liff.init({ liffId: LIFF_ID }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`LIFF 初始化逾時，請確認 LINE Developers Console 的 Endpoint URL 已設為 https://linchun-hr.web.app`)), 12000)
+        ),
+      ]);
       if (!window.liff.isLoggedIn()) {
         window.liff.login();
         return;
