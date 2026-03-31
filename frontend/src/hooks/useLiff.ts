@@ -64,7 +64,7 @@ export function useLiff(): LiffState {
         const { data } = await api.get("/api/auth/check", {
           headers: { Authorization: `Bearer ${existing}` },
         });
-        setState({ ready: true, error: null, lineUid: null, name: data.name, role: data.role });
+        setState({ ready: true, needBind: false, error: null, lineUid: null, name: data.name, role: data.role });
         return;
       }
 
@@ -93,6 +93,7 @@ export function useLiff(): LiffState {
 
       setState({
         ready: true,
+        needBind: false,
         error: null,
         lineUid: null,
         name: data.name,
