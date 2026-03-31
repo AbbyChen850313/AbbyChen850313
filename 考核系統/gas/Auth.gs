@@ -190,6 +190,65 @@ function apiCheckBinding(lineUid) {
   return { bound: true, name: account.name, jobTitle: account.jobTitle, role: account.role };
 }
 
+// ============================================================
+// 角色管理
+// ============================================================
+
+/**
+ * 依 HR Sheet 中的員工資料，重新計算所有已授權帳號的角色
+ * 並更新 LINE帳號 H 欄，然後同步 Firestore
+ * @param {string} lineUid  系統管理員的 UID（權限驗證用）
+ */
+function apiRefreshAllRoles(lineUid) {
+  const auth = _verifySysAdmin(lineUid);
+  if (auth.error) return auth;
+  const updated = _refreshAllRoles();
+  try { fsSyncAccounts(); } catch (_) {}
+  return { success: true, updatedCount: updated };
+}
+
+/** 重新計算所有已授權帳號角色，回傳更新筆數 */
+function _refreshAllRoles() {
+  const accountSheet = _sheet('LINE帳號');
+  const rows = _sheetRows('LINE帳號');
+  let updated = 0;
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][COL_ACCOUNT.STATUS] !== '已授權') continue;
+    const name = String(rows[i][COL_ACCOUNT.NAME] || '').trim();
+    if (!name) continue;
+    const employee = _findEmployeeByName(name);
+    if (!employee) continue;
+    const newRole     = _deriveRole(employee.titleCategory, employee.employeeId);
+    const currentRole = String(rows[i][COL_ACCOUNT.ROLE] || '').trim();
+    if (newRole !== currentRole) {
+      accountSheet.getRange(i + 1, COL_ACCOUNT.ROLE + 1).setValue(newRole);
+      updated++;
+    }
+  }
+  return updated;
+}
+
+/**
+ * 以姓名查詢 HR Sheet（唯讀）
+ * @returns {{ name, employeeId, jobTitle, titleCategory }} 或 null
+ */
+function _findEmployeeByName(name) {
+  const hrSheet = SpreadsheetApp.openById(CONFIG.HR_SPREADSHEET_ID)
+    .getSheetByName('(人工打)總表');
+  const data = hrSheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (String(data[i][4]).trim() === name) {
+      return {
+        name:          String(data[i][4]).trim(),
+        employeeId:    String(data[i][2]).trim(),
+        jobTitle:      String(data[i][12]).trim(),
+        titleCategory: String(data[i][14]).trim(),
+      };
+    }
+  }
+  return null;
+}
+
 /**
  * 在 HR Sheet 以姓名 + 員工編號查詢員工（唯讀）
  * @returns {{ name, employeeId, jobTitle, titleCategory }} 或 null

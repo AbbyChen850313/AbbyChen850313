@@ -154,6 +154,7 @@ function doPost(e) {
       apiGetLogs,
       apiGetManagerDashboard,
       apiGetDashboard,
+      apiRefreshAllRoles,
     };
     if (!API[action]) {
       _log('WARN', 'doPost', `未知 action: ${action}`);
