@@ -83,6 +83,12 @@ function _writeScore(data, isSubmitted) {
   ];
 
   if (existingRow > 0) {
+    // 草稿不可覆寫已送出的記錄（防止二次送出競爭條件）
+    const existingStatus = allData[existingRow - 1][16];
+    if (!isSubmitted && existingStatus === '已送出') {
+      _log('WARN', '_writeScore', `${managerName} 草稿試圖覆寫已送出記錄，已阻止`, { employeeName });
+      return { error: '此評分已送出，草稿無法覆寫，請重新整理頁面' };
+    }
     sheet.getRange(existingRow, 1, 1, rowData.length).setValues([rowData]);
   } else {
     sheet.appendRow(rowData);

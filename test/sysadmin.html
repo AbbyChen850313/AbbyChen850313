@@ -30,9 +30,10 @@
 </head>
 <body>
 
-<div class="header">
+<div class="header" style="position:relative">
   <h1>🔧 系統管理員</h1>
   <div class="subtitle">SysAdmin 控制台</div>
+  <a id="homeLink" href="dashboard.html" style="position:absolute;top:50%;right:16px;transform:translateY(-50%);font-size:12px;color:rgba(255,255,255,0.8);text-decoration:none;background:rgba(255,255,255,0.15);padding:6px 12px;border-radius:6px">← 首頁</a>
 </div>
 
 <div class="tab-bar">
@@ -172,6 +173,8 @@ let lineUid = decodeURIComponent(params.get('uid') || '') || localStorage.getIte
 let _allAccounts = [];
 let _logsCache   = [];
 
+document.getElementById('homeLink').href = 'dashboard.html?uid=' + encodeURIComponent(lineUid);
+
 function switchTab(tab) {
   const tabs = ['status', 'simulate', 'accounts', 'settings', 'logs'];
   document.querySelectorAll('.tab-btn').forEach((btn, i) => btn.classList.toggle('active', tabs[i] === tab));
@@ -225,13 +228,15 @@ async function loadSimulateTab() {
   }
   _allAccounts = accounts;
 
-  // 在測試環境優先使用 testUid；正式環境使用 lineUid
+  // 顯示所有有 UID 的帳號；測試環境優先用 testUid，無 testUid 則回退 lineUid
   const opts = accounts
-    .filter(a => IS_TEST ? a.testUid : a.lineUid)  // 只顯示此環境有 UID 的帳號
+    .filter(a => a.lineUid || a.testUid)
     .map(a => {
-      const uid = IS_TEST ? a.testUid : a.lineUid;
-      return `<option value="${uid}" data-role="${a.role || ''}" data-name="${a.name}">${a.name}（${a.role || '同仁'}）</option>`;
-    }).join('');
+      const uid = (IS_TEST && a.testUid) ? a.testUid : a.lineUid;
+      if (!uid) return '';
+      const note = IS_TEST && !a.testUid ? '【未綁測試】' : '';
+      return `<option value="${uid}" data-role="${a.role || ''}" data-name="${a.name}">${a.name}（${a.role || '同仁'}）${note}</option>`;
+    }).filter(Boolean).join('');
 
   if (!opts) {
     document.getElementById('simAccountSelect').innerHTML = '<option value="">-- 尚無已綁定帳號 --</option>';
@@ -266,7 +271,7 @@ async function openSimView() {
 }
 
 async function _loadSimManagerView(targetUid) {
-  const data = await callGAS('apiGetManagerDashboard', [lineUid, targetUid]);
+  const data = await callGAS('apiGetManagerDashboard', [lineUid, targetUid, IS_TEST]);
   if (!data || data.error) {
     document.getElementById('simContent').innerHTML =
       `<div class="loading" style="color:#f44336">${(data && data.error) || '無法載入'}</div>`;
@@ -299,7 +304,7 @@ async function _loadSimManagerView(targetUid) {
 }
 
 async function _loadSimHRView(targetUid) {
-  const status = await callGAS('apiGetAllStatus', [lineUid]);
+  const status = await callGAS('apiGetAllStatus', [lineUid, IS_TEST]);
   if (!status || status.error) {
     document.getElementById('simContent').innerHTML =
       `<div class="loading" style="color:#f44336">${(status && status.error) || '無法載入'}</div>`;

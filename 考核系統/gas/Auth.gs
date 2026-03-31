@@ -5,6 +5,14 @@
 // 職稱類別為主管的值（與 HR Sheet O欄一致）
 const MANAGER_TITLE_CATEGORIES = ['董事長', '經理', '廠長', '協理'];
 
+// HR Sheet「(人工打)總表」欄位索引（0-based）
+const COL_HR = {
+  EMPLOYEE_ID:     2,  // C 員工編號
+  NAME:            4,  // E 姓名
+  JOB_TITLE:      12,  // M 職稱
+  TITLE_CATEGORY: 14,  // O 職稱類別
+};
+
 // LINE帳號 工作表欄位索引（0-based）
 const COL_ACCOUNT = {
   NAME:         0,  // A 姓名
@@ -239,21 +247,30 @@ function _refreshAllRoles() {
 
 /** 一次讀取 HR Sheet，建立員工編號和姓名雙鍵索引 */
 function _buildHrEmployeeIndex() {
-  const hrSheet = SpreadsheetApp.openById(CONFIG.HR_SPREADSHEET_ID)
-    .getSheetByName('(人工打)總表');
-  const data  = hrSheet.getDataRange().getValues();
-  const index = {};
-  for (let i = 1; i < data.length; i++) {
-    const employeeId    = String(data[i][2]).trim();
-    const name          = String(data[i][4]).trim();
-    const jobTitle      = String(data[i][12]).trim();
-    const titleCategory = String(data[i][14]).trim();
-    if (!employeeId && !name) continue;
-    const entry = { name, employeeId, jobTitle, titleCategory };
-    if (employeeId)           index[employeeId] = entry;
-    if (name && !index[name]) index[name]       = entry; // 姓名作為回退鍵
+  try {
+    const hrSpreadsheet = SpreadsheetApp.openById(CONFIG.HR_SPREADSHEET_ID);
+    const hrSheet = hrSpreadsheet.getSheetByName('(人工打)總表');
+    if (!hrSheet) {
+      _log('WARN', '_buildHrEmployeeIndex', 'HR Sheet 找不到工作表「(人工打)總表」');
+      return {};
+    }
+    const data  = hrSheet.getDataRange().getValues();
+    const index = {};
+    for (let i = 1; i < data.length; i++) {
+      const employeeId    = String(data[i][COL_HR.EMPLOYEE_ID]    || '').trim();
+      const name          = String(data[i][COL_HR.NAME]           || '').trim();
+      const jobTitle      = String(data[i][COL_HR.JOB_TITLE]      || '').trim();
+      const titleCategory = String(data[i][COL_HR.TITLE_CATEGORY] || '').trim();
+      if (!employeeId && !name) continue;
+      const entry = { name, employeeId, jobTitle, titleCategory };
+      if (employeeId)           index[employeeId] = entry;
+      if (name && !index[name]) index[name]       = entry; // 姓名作為回退鍵
+    }
+    return index;
+  } catch (e) {
+    _log('ERROR', '_buildHrEmployeeIndex', 'HR Sheet 讀取失敗', e.message);
+    return {};
   }
-  return index;
 }
 
 /**
@@ -267,15 +284,15 @@ function _findEmployeeByIdentity(name, employeeId) {
 
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
-    const rowEmployeeId = String(row[2]).trim();  // C欄：員工編號
-    const rowName       = String(row[4]).trim();  // E欄：姓名
+    const rowEmployeeId = String(row[COL_HR.EMPLOYEE_ID]).trim();
+    const rowName       = String(row[COL_HR.NAME]).trim();
 
     if (rowEmployeeId === employeeId.trim() && rowName === name.trim()) {
       return {
         name:          rowName,
         employeeId:    rowEmployeeId,
-        jobTitle:      String(row[12]).trim(), // M欄：職稱
-        titleCategory: String(row[14]).trim(), // O欄：職稱類別
+        jobTitle:      String(row[COL_HR.JOB_TITLE]).trim(),
+        titleCategory: String(row[COL_HR.TITLE_CATEGORY]).trim(),
       };
     }
   }

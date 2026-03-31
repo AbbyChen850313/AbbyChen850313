@@ -12,9 +12,10 @@
 </head>
 <body>
 
-<div class="header">
+<div class="header" style="position:relative">
   <h1>⚙️ HR 管理後台</h1>
   <div class="subtitle">HR 管理後台</div>
+  <a id="homeLink" href="dashboard.html" style="position:absolute;top:50%;right:16px;transform:translateY(-50%);font-size:12px;color:rgba(255,255,255,0.8);text-decoration:none;background:rgba(255,255,255,0.15);padding:6px 12px;border-radius:6px">← 首頁</a>
 </div>
 
 <div class="tab-bar">
@@ -123,6 +124,8 @@ const LS_UID  = IS_TEST ? 'liff_uid_test' : 'liff_uid';
 
 const params = new URLSearchParams(location.search);
 let lineUid = decodeURIComponent(params.get('uid') || '') || localStorage.getItem(LS_UID) || '';
+
+document.getElementById('homeLink').href = 'dashboard.html?uid=' + encodeURIComponent(lineUid);
 
 function switchTab(tab) {
   const tabs = ['progress', 'accounts', 'settings', 'export', 'logs'];

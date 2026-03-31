@@ -340,10 +340,14 @@ function apiGetSettings() {
 
 // --- Scoring ---
 function apiSaveDraft(data) {
+  const info = _verifyManager(data && data.lineUid);
+  if (info.error) return info;
   return saveDraft(data);
 }
 
 function apiSubmitScore(data) {
+  const info = _verifyManager(data && data.lineUid);
+  if (info.error) return info;
   return submitScore(data);
 }
 
@@ -427,13 +431,15 @@ function apiExportExcel(lineUid, quarter) {
 }
 
 /** HR 或系統管理員以指定主管 UID 查看其儀表板（員工列表＋評分狀態） */
-function apiGetManagerDashboard(hrLineUid, targetManagerUid) {
+function apiGetManagerDashboard(hrLineUid, targetManagerUid, isTest) {
   const info = _verifyHROrSysAdmin(hrLineUid);
   if (info.error) return info;
   const managerInfo = getManagerInfo(targetManagerUid);
   if (!managerInfo) return { error: '查無此主管帳號' };
-  const status = getScoreStatus(managerInfo, getCurrentQuarter());
-  const scores = getMyScores(targetManagerUid, getCurrentQuarter());
+  const quarter = getCurrentQuarter();
+  const status = getScoreStatus(managerInfo, quarter, !!isTest);
+  const scores = getMyScores(targetManagerUid, quarter, !!isTest);
+  _log('INFO', 'apiGetManagerDashboard', `${info.managerName} 模擬查看 ${managerInfo.managerName}`, { isTest: !!isTest });
   status.managerName = managerInfo.managerName;
   status.employees = status.employees.map(emp => ({
     ...emp,

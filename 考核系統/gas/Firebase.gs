@@ -262,8 +262,15 @@ function fsSyncAllManagerDashboards() {
     const testUid = String(accounts[i][COL_ACCOUNT.TEST_UID] || '').trim();
     const role    = String(accounts[i][COL_ACCOUNT.ROLE]     || '').trim();
     if (role === 'HR' || role === '系統管理員') continue;
-    if (uid)     fsSyncManagerDashboard(uid,     quarter, false);
-    if (testUid) fsSyncManagerDashboard(testUid, quarter, true);
+    try {
+      if (uid)     fsSyncManagerDashboard(uid,     quarter, false);
+      if (testUid) fsSyncManagerDashboard(testUid, quarter, true);
+    } catch (e) {
+      _log('WARN', 'fsSyncAllManagerDashboards', '單筆同步失敗，繼續下一筆', {
+        uid: uid ? '…' + uid.slice(-4) : '',
+        error: e.message,
+      });
+    }
   }
 }
 
