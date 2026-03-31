@@ -21,11 +21,28 @@ function _getRequiredProp(key) {
 }
 
 // ============================================================
+// Request context（測試/正式環境路由）
+// ============================================================
+// GAS 每次 HTTP 請求是獨立執行環境（無跨請求共享狀態）。
+// doPost() 在呼叫 API 前設定此值，之後 _ss() 自動路由到對應 Spreadsheet。
+let _REQUEST_IS_TEST = false;
+function _setRequestIsTest(val) { _REQUEST_IS_TEST = !!val; }
+function _isTestRequest()        { return _REQUEST_IS_TEST; }
+
+// ============================================================
 // Sheets 存取 Helper（所有 .gs 檔案共用）
 // ============================================================
 
-/** 取得後台 Spreadsheet */
+/**
+ * 取得後台 Spreadsheet（依 request context 自動路由測試/正式）
+ * 測試環境讀取 Script Property「TEST_SPREADSHEET_ID」指定的 Spreadsheet
+ */
 function _ss() {
+  if (_REQUEST_IS_TEST) {
+    const testId = PropertiesService.getScriptProperties().getProperty('TEST_SPREADSHEET_ID');
+    if (testId) return SpreadsheetApp.openById(testId);
+    Logger.log('WARN: TEST_SPREADSHEET_ID 未設定，回退正式 Spreadsheet');
+  }
   return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
 }
 
@@ -41,6 +58,25 @@ function _sheet(name) {
 function _sheetRows(name) {
   const s = _sheet(name);
   return s ? s.getDataRange().getValues() : [];
+}
+
+// ============================================================
+// 測試環境初始化（首次部署後在 GAS 編輯器執行一次）
+// ============================================================
+
+/** 設定測試 Spreadsheet ID 到 Script Properties */
+function bootstrapTestEnv() {
+  const TEST_ID = '1TCOXZ0hp20h4Vr0JyLyedO64TPaSnw9GX30Fuh8Pdyg';
+  PropertiesService.getScriptProperties().setProperty('TEST_SPREADSHEET_ID', TEST_ID);
+  Logger.log('✅ TEST_SPREADSHEET_ID 已設定：' + TEST_ID);
+}
+
+/** 初始化測試 Spreadsheet 所有工作表（首次設定時執行一次） */
+function initTestSpreadsheet() {
+  _setRequestIsTest(true);
+  initAllSheets();
+  Logger.log('✅ 測試 Spreadsheet 初始化完成');
+  _setRequestIsTest(false);
 }
 
 // ============================================================
@@ -141,7 +177,27 @@ function doPost(e) {
     }
 
     action = body.action;
-    const args = body.args;
+    const args = body.args || [];
+
+    // 根據 action/args 設定 request-level isTest context（決定路由到哪個 Spreadsheet）
+    const _IS_TEST_EXTRACTORS = {
+      apiGetScoreStatus:      a => !!a[1],
+      apiGetMyScores:         a => !!a[2],
+      apiGetDashboard:        a => !!a[1],
+      apiGetAllStatus:        a => !!a[1],
+      apiGetManagerDashboard: a => !!a[2],
+      apiTriggerReminders:    a => !!a[1],
+      apiExportExcel:         a => !!a[2],
+      apiSaveDraft:           a => !!(a[0] && a[0].isTest),
+      apiSubmitScore:         a => !!(a[0] && a[0].isTest),
+      apiBindByIdentity:      a => !!a[5],
+      apiGetEmployeesForManager: a => !!a[1],
+      apiSyncEmployees:       a => !!a[1],
+      apiGetAllAccounts:      a => !!a[1],
+      apiResetAccount:        a => !!a[2],
+    };
+    _setRequestIsTest(_IS_TEST_EXTRACTORS[action] ? _IS_TEST_EXTRACTORS[action](args) : false);
+
     const API = {
       apiCheckBinding,
       apiBindByIdentity,
@@ -256,13 +312,15 @@ function _handleLiffBindAction(params) {
       result = apiCheckBinding(uid);
 
     } else if (action === 'bindByIdentity') {
+      const isTestBind = params.isTest === 'true' || params.isTest === true;
+      _setRequestIsTest(isTestBind);
       result = apiBindByIdentity(
         uid,
         params.displayName || '',
         params.name        || '',
         params.eid         || '',
         params.phone       || '',
-        params.isTest      || false
+        isTestBind
       );
 
     } else if (action === 'unbindSelf') {
@@ -320,13 +378,13 @@ function getCurrentQuarter() {
 // apiBindByIdentity, apiCheckBinding 定義於 Auth.gs
 
 // --- Employees ---
-function apiGetEmployeesForManager(lineUid) {
+function apiGetEmployeesForManager(lineUid, isTest) {
   const info = _verifyManager(lineUid);
   if (info.error) return info;
   return getEmployeesForManager(info);
 }
 
-function apiSyncEmployees(lineUid) {
+function apiSyncEmployees(lineUid, isTest) {
   const info = _verifyHROrSysAdmin(lineUid);
   if (info.error) return info;
   const result = syncEmployees();

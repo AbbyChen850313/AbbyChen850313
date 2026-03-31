@@ -196,12 +196,12 @@ function fsSyncSettings() {
 }
 
 function fsSyncAccounts() {
-  const rows       = _sheetRows('LINE帳號');
-  const prodWrites = [];
-  const testWrites = [];
+  const isTest     = _isTestRequest();
+  const collection = isTest ? 'test_accounts' : 'accounts';
+  const rows       = _sheetRows('LINE帳號'); // 自動路由到正確 Spreadsheet
+  const writes     = [];
   for (let i = 1; i < rows.length; i++) {
-    const uid     = String(rows[i][COL_ACCOUNT.UID]         || '').trim();
-    const testUid = String(rows[i][COL_ACCOUNT.TEST_UID]    || '').trim();
+    const uid = String(rows[i][COL_ACCOUNT.UID] || '').trim();
     if (!uid) continue;
     const data = {
       name:        String(rows[i][COL_ACCOUNT.NAME]         || '').trim(),
@@ -211,24 +211,23 @@ function fsSyncAccounts() {
       status:      String(rows[i][COL_ACCOUNT.STATUS]       || '').trim(),
       employeeId:  String(rows[i][COL_ACCOUNT.EMPLOYEE_ID]  || '').trim(),
     };
-    // 正式 UID → accounts；測試 UID → test_accounts（環境隔離）
-    prodWrites.push({ collection: 'accounts',      docId: uid, data });
-    if (testUid) testWrites.push({ collection: 'test_accounts', docId: testUid, data });
+    writes.push({ collection, docId: uid, data });
   }
-  if (prodWrites.length) fsBatchSet(prodWrites);
-  if (testWrites.length) fsBatchSet(testWrites);
-  _log('INFO', 'fsSyncAccounts', `同步完成`, { prod: prodWrites.length, test: testWrites.length });
+  if (writes.length) fsBatchSet(writes);
+  _log('INFO', 'fsSyncAccounts', `同步完成`, { collection, count: writes.length });
 }
 
 function fsSyncEmployees() {
-  const rows   = _sheetRows('員工資料');
-  const writes = [];
+  const isTest     = _isTestRequest();
+  const collection = isTest ? 'test_employees' : 'employees';
+  const rows       = _sheetRows('員工資料');
+  const writes     = [];
   for (let i = 1; i < rows.length; i++) {
     const name = String(rows[i][1] || '').trim();
     if (!name) continue;
     writes.push({
-      collection: 'employees',
-      docId:      name,
+      collection,
+      docId: name,
       data: {
         name,
         dept:      String(rows[i][2] || '').trim(),
@@ -239,7 +238,7 @@ function fsSyncEmployees() {
     });
   }
   if (writes.length) fsBatchSet(writes);
-  Logger.log(`同步 employees ${writes.length} 筆`);
+  Logger.log(`同步 ${collection} ${writes.length} 筆`);
 }
 
 function fsSyncScoreItems() {
@@ -255,19 +254,19 @@ function fsSyncScoreItems() {
 }
 
 function fsSyncAllManagerDashboards() {
-  const accounts = _sheetRows('LINE帳號');
+  const isTest   = _isTestRequest();
+  const accounts = _sheetRows('LINE帳號'); // 自動路由到正確 Spreadsheet
   const quarter  = getCurrentQuarter();
   for (let i = 1; i < accounts.length; i++) {
-    const uid     = String(accounts[i][COL_ACCOUNT.UID]      || '').trim();
-    const testUid = String(accounts[i][COL_ACCOUNT.TEST_UID] || '').trim();
-    const role    = String(accounts[i][COL_ACCOUNT.ROLE]     || '').trim();
+    const uid  = String(accounts[i][COL_ACCOUNT.UID]  || '').trim();
+    const role = String(accounts[i][COL_ACCOUNT.ROLE] || '').trim();
     if (role === 'HR' || role === '系統管理員') continue;
+    if (!uid) continue;
     try {
-      if (uid)     fsSyncManagerDashboard(uid,     quarter, false);
-      if (testUid) fsSyncManagerDashboard(testUid, quarter, true);
+      fsSyncManagerDashboard(uid, quarter, isTest);
     } catch (e) {
       _log('WARN', 'fsSyncAllManagerDashboards', '單筆同步失敗，繼續下一筆', {
-        uid: uid ? '…' + uid.slice(-4) : '',
+        uid: '…' + uid.slice(-4),
         error: e.message,
       });
     }
@@ -276,9 +275,10 @@ function fsSyncAllManagerDashboards() {
 
 /** 計算並寫入單一主管的 dashboard snapshot（isTest=true 時寫入 test_managerDashboard） */
 function fsSyncManagerDashboard(managerUid, quarter, isTest) {
+  _setRequestIsTest(isTest); // 確保 _sheet() 路由到正確 Spreadsheet
   const info = getManagerInfo(managerUid);
   if (!info || info.isHR || info.isSysAdmin) return;
-  const status     = getScoreStatus(info, quarter || getCurrentQuarter(), !!isTest);
+  const status     = getScoreStatus(info, quarter || getCurrentQuarter());
   const collection = isTest ? 'test_managerDashboard' : 'managerDashboard';
   fsSet(collection, managerUid, {
     quarter:     status.quarter,

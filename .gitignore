@@ -1,0 +1,9 @@
+# Service account keys and secrets — NEVER commit these
+setup_firebase.py
+*.json.key
+service-account*.json
+firebase-adminsdk*.json
+
+# Local env files
+.env
+.env.*

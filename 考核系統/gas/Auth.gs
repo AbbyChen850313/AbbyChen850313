@@ -142,25 +142,15 @@ function apiBindByIdentity(lineUid, displayName, name, employeeId, phone, isTest
 
     const role = _deriveRole(employee.titleCategory, employee.employeeId);
 
-    if (isTest) {
-      // 測試環境：優先寫入同名正式帳號的 TEST_UID 欄；找不到就直接建新帳號
-      const linked = _linkTestUid(employee.name, employee.employeeId, lineUid, role);
-      if (!linked) {
-        _upsertAccount(lineUid, displayName, employee.name, employee.jobTitle, phone, role, employee.employeeId);
-        _updateWeightUid(employee.jobTitle, lineUid, employee.name);
-      }
-      switchRichMenuByRole(lineUid, role);
-      _log('INFO', 'apiBindByIdentity', `測試 UID 綁定：${employee.name}`, { testUid: lineUid });
-      try { fsSyncAccounts(); } catch (e) { _log('WARN', 'apiBindByIdentity', 'Firestore sync 失敗(test)', e.message); }
-      return { success: true, name: employee.name, jobTitle: employee.jobTitle, role: linked ? linked.role : role };
-    }
-
+    // _REQUEST_IS_TEST 已由 doPost() 依 isTest 參數設定，_ss() 自動路由到正確 Spreadsheet
     _upsertAccount(lineUid, displayName, employee.name, employee.jobTitle, phone, role, employee.employeeId);
     _updateWeightUid(employee.jobTitle, lineUid, employee.name);
     switchRichMenuByRole(lineUid, role);
 
-    _log('INFO', 'apiBindByIdentity', `綁定成功：${employee.name}`, { jobTitle: employee.jobTitle });
-    try { fsSyncAccounts(); } catch (e) { _log('WARN', 'apiBindByIdentity', 'Firestore sync 失敗(prod)', e.message); }
+    _log('INFO', 'apiBindByIdentity',
+      `${_isTestRequest() ? '[TEST] ' : ''}綁定成功：${employee.name}`,
+      { jobTitle: employee.jobTitle });
+    try { fsSyncAccounts(); } catch (e) { _log('WARN', 'apiBindByIdentity', 'Firestore sync 失敗', e.message); }
     return {
       success: true,
       name:      employee.name,

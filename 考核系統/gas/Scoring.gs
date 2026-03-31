@@ -31,7 +31,6 @@ function _writeScore(data, isSubmitted) {
     return { error: '身份驗證失敗' };
   }
 
-  const isTest      = !!data.isTest;
   const quarter     = data.quarter || getCurrentQuarter();
   const { employeeName, section, scores, special, note } = data;
   const managerName = managerInfo.managerName;
@@ -49,9 +48,8 @@ function _writeScore(data, isSubmitted) {
   const finalScore = Math.round((rawScore + specialAdj) * 100) / 100;
   const weightedScore = Math.round(finalScore * weight * 100) / 100;
 
-  // 測試環境寫入獨立的工作表，避免污染正式評分記錄
-  const sheetName = isTest ? '評分記錄_test' : '評分記錄';
-  const sheet = _sheet(sheetName) || _ss().insertSheet(sheetName);
+  // _ss() 依 request context 自動路由到正確 Spreadsheet，兩邊 sheet 同名
+  const sheet = _sheet('評分記錄') || _ss().insertSheet('評分記錄');
   const allData = sheet.getDataRange().getValues();
 
   // 找是否已有這筆記錄（同主管、同員工、同季度）
@@ -94,7 +92,7 @@ function _writeScore(data, isSubmitted) {
     sheet.appendRow(rowData);
   }
 
-  _log('INFO', '_writeScore', `${isTest ? '[TEST] ' : ''}${managerName} → ${employeeName} ${isSubmitted ? '送出' : '草稿'}`, { quarter, weightedScore });
+  _log('INFO', '_writeScore', `${_isTestRequest() ? '[TEST] ' : ''}${managerName} → ${employeeName} ${isSubmitted ? '送出' : '草稿'}`, { quarter, weightedScore });
 
   // 同步到 Firestore（失敗時記錄 WARN，不影響主流程）
   try {
@@ -102,8 +100,8 @@ function _writeScore(data, isSubmitted) {
       managerName, section, scores, note: note || '',
       rawScore, finalScore, weightedScore,
       status: isSubmitted ? '已送出' : '草稿',
-    }, isTest);
-    fsSyncManagerDashboard(data.lineUid, quarter, isTest);
+    }, _isTestRequest());
+    fsSyncManagerDashboard(data.lineUid, quarter, _isTestRequest());
   } catch (e) {
     _log('WARN', '_writeScore', 'Firestore 同步失敗', e && e.message);
   }
@@ -146,8 +144,7 @@ function calcRawScore(scores) {
  * @returns {Object} { totalScore, grade, managerScores }
  */
 function calcWeightedScore(employeeName, quarter, isTest) {
-  const sheetName = isTest ? '評分記錄_test' : '評分記錄';
-  const sheet = _sheet(sheetName);
+  const sheet = _sheet('評分記錄');
   if (!sheet) return null;
   const data = sheet.getDataRange().getValues();
 
@@ -195,8 +192,7 @@ function getGradeLabel(score) {
 function getScoreStatus(managerInfo, quarter, isTest) {
   const employees = getEmployeesForManager(managerInfo);
 
-  const sheetName = isTest ? '評分記錄_test' : '評分記錄';
-  const sheet = _sheet(sheetName);
+  const sheet = _sheet('評分記錄');
   if (!sheet) {
     return { total: employees.length, scored: 0, draft: 0, pending: employees.length,
              employees: employees.map(e => ({ ...e, scoreStatus: '未評分' })), quarter };
@@ -239,8 +235,7 @@ function getMyScores(lineUid, quarter, isTest) {
   const managerInfo = getManagerInfo(lineUid);
   if (!managerInfo) return {};
 
-  const sheetName = isTest ? '評分記錄_test' : '評分記錄';
-  const sheet = _sheet(sheetName);
+  const sheet = _sheet('評分記錄');
   if (!sheet) return {};
   const data = sheet.getDataRange().getValues();
 
