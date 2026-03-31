@@ -170,7 +170,7 @@ let lineUid = decodeURIComponent(params.get('uid') || '') || localStorage.getIte
 let _allAccounts = [];
 let _logsCache   = [];
 
-document.getElementById('homeLink').href = 'dashboard.html?uid=' + encodeURIComponent(lineUid);
+// homeLink already points to dashboard.html in HTML; lineUid is read from localStorage there
 
 function switchTab(tab) {
   const tabs = ['status', 'simulate', 'accounts', 'settings', 'logs'];
@@ -232,7 +232,7 @@ async function loadSimulateTab() {
       const uid = (IS_TEST && a.testUid) ? a.testUid : a.lineUid;
       if (!uid) return '';
       const note = IS_TEST && !a.testUid ? '【未綁測試】' : '';
-      return `<option value="${uid}" data-role="${a.role || ''}" data-name="${a.name}">${a.name}（${a.role || '同仁'}）${note}</option>`;
+      return `<option value="${escHtml(uid)}" data-role="${escHtml(a.role || '')}" data-name="${escHtml(a.name)}">${escHtml(a.name)}（${escHtml(a.role || '同仁')}）${note}</option>`;
     }).filter(Boolean).join('');
 
   if (!opts) {
@@ -315,7 +315,7 @@ async function _loadSimHRView(targetUid) {
       const color = pct === 100 ? '#2e7d32' : pct > 0 ? '#f57f17' : '#9e9e9e';
       return `<div class="list-card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span style="font-weight:bold;font-size:15px">${s.managerName}</span>
+          <span style="font-weight:bold;font-size:15px">${escHtml(s.managerName)}</span>
           <span style="font-size:13px;font-weight:bold;color:${color}">${pct}%</span>
         </div>
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">已評 ${s.scored} / 共 ${s.total} 人</div>
@@ -369,12 +369,13 @@ async function loadAccounts() {
     <div class="list-card">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
-          <div style="font-weight:bold;font-size:15px">${a.name}</div>
-          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${a.role || '同仁'} ｜ ${a.phone || '未填電話'}</div>
-          <div style="font-size:11px;color:var(--text-sub);margin-top:2px">綁定：${a.boundAt}</div>
+          <div style="font-weight:bold;font-size:15px">${escHtml(a.name)}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${escHtml(a.role || '同仁')} ｜ ${escHtml(a.phone) || '未填電話'}</div>
+          <div style="font-size:11px;color:var(--text-sub);margin-top:2px">綁定：${escHtml(a.boundAt)}</div>
         </div>
         <button class="btn btn-danger" style="flex:none;padding:8px 14px;font-size:13px"
-                onclick="resetAccount('${a.lineUid}', '${a.name}')">取消綁定</button>
+                data-uid="${escHtml(a.lineUid)}" data-name="${escHtml(a.name)}"
+                onclick="resetAccount(this.dataset.uid, this.dataset.name)">取消綁定</button>
       </div>
     </div>`).join('');
 }
@@ -418,8 +419,8 @@ function renderLogs() {
         <span style="font-size:11px;font-weight:bold;color:${levelColor[l.level] || 'var(--text-muted)'}">${l.level}</span>
         <span style="font-size:11px;color:var(--text-sub)">${l.time}</span>
       </div>
-      <div style="font-size:13px;color:var(--text)">[${l.fn}] ${l.msg}</div>
-      ${l.detail ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;word-break:break-all">${l.detail}</div>` : ''}
+      <div style="font-size:13px;color:var(--text)">[${escHtml(l.fn)}] ${escHtml(l.msg)}</div>
+      ${l.detail ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;word-break:break-all">${escHtml(l.detail)}</div>` : ''}
     </div>`).join('');
 }
 

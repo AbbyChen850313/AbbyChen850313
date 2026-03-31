@@ -15,3 +15,13 @@ function showToast(msg, duration) {
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), duration || 3000);
 }
+
+/** HTML 跳脫，防止 innerHTML 插入時的 XSS */
+function escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}

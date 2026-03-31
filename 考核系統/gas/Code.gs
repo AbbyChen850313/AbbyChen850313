@@ -326,21 +326,6 @@ function _handleLiffBindAction(params) {
         isTestBind
       );
 
-    } else if (action === 'unbindSelf') {
-      // 自行解除綁定（測試/重綁用）
-      if (!uid) { result = { error: 'missing uid' }; }
-      else {
-        const accountSheet = _sheet('LINE帳號');
-        if (accountSheet) {
-          const data = accountSheet.getDataRange().getValues();
-          for (let i = data.length - 1; i >= 1; i--) {
-            if (data[i][1] === uid) accountSheet.deleteRow(i + 1);
-          }
-        }
-        _emit('account.unbound', { lineUid: uid });
-        result = { success: true };
-      }
-
     } else {
       result = { error: 'unknown action: ' + action };
     }

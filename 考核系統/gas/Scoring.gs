@@ -255,8 +255,7 @@ function getMyScores(lineUid, quarter, isTest) {
  * 取得所有主管評分完成進度（HR用）
  */
 function getAllManagerStatus(quarter, isTest) {
-  const accountSheet = _sheet('LINE帳號');
-  const accountData = accountSheet.getDataRange().getValues();
+  const accountData = _sheetRows('LINE帳號');
 
   const result = [];
   for (let i = 1; i < accountData.length; i++) {

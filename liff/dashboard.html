@@ -147,8 +147,7 @@ async function loadDashboard(uid) {
     }
 
     if (account.role === 'HR') {
-      localStorage.setItem(LS_UID, uid);
-      location.href = `admin.html?uid=${encodeURIComponent(uid)}`;
+      _initHRView();
       return;
     }
 
@@ -190,10 +189,20 @@ async function _loadMyScores(uid, quarter) {
   } catch (_) {}
 }
 
+function _initHRView() {
+  document.getElementById('headerSubtitle').textContent = 'HR 管理後台';
+  document.getElementById('employeeList').innerHTML = `
+    <div style="padding:40px 20px;text-align:center">
+      <a href="admin.html" class="btn btn-primary" style="display:inline-block;padding:14px 32px;text-decoration:none;border-radius:8px">
+        ⚙️ 進入 HR 管理後台
+      </a>
+    </div>`;
+}
+
 async function _initSysAdminView(sysAdminUid, data) {
   document.getElementById('headerSubtitle').textContent = '系統管理員';
   document.getElementById('sysadminControls').style.display = 'flex';
-  document.getElementById('adminLink').href = `sysadmin.html?uid=${encodeURIComponent(sysAdminUid)}`;
+  // adminLink already points to sysadmin.html in HTML; no UID in URL needed
 
   const sel = document.getElementById('simSelect');
   (data.accounts || [])
@@ -296,8 +305,8 @@ function filterEmployees(type, btn) {
 }
 
 function goToScore(encodedName, encodedSection) {
-  const uid = viewAsUid || lineUid;
-  location.href = `score.html?uid=${encodeURIComponent(uid)}&eid=${encodedName}&section=${encodedSection}`;
+  if (viewAsUid) localStorage.setItem(LS_UID, viewAsUid);
+  location.href = `score.html?eid=${encodedName}&section=${encodedSection}`;
 }
 
 function showError(msg) {

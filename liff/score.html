@@ -95,7 +95,7 @@ const GRADES = [
 ];
 
 const params = new URLSearchParams(location.search);
-let lineUid = decodeURIComponent(params.get('uid') || '');
+let lineUid = decodeURIComponent(params.get('uid') || '') || localStorage.getItem(LS_UID) || '';
 const employeeName = decodeURIComponent(params.get('eid') || '');
 const section = decodeURIComponent(params.get('section') || '');
 
