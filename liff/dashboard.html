@@ -8,19 +8,8 @@
   <meta http-equiv="Expires" content="0">
   <title>考核評分系統</title>
   <link rel="stylesheet" href="../shared/styles.css">
-  <script src="../shared/firebase-config.js"></script>
   <script src="../shared/config.js"></script>
   <script src="../shared/utils.js"></script>
-  <script type="module">
-    import { initializeApp }              from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js';
-    import { getFirestore, doc, getDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js';
-    const _app = initializeApp(FIREBASE_CONFIG);
-    window._db = getFirestore(_app);
-    window._fsDoc     = (col, id)  => getDoc(doc(_db, col, id)).then(s => s.exists() ? s.data() : null);
-    window._fsCollection = (col)   => getDocs(collection(_db, col)).then(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
-    window._fsReady = true;
-    document.dispatchEvent(new Event('firebase-ready'));
-  </script>
 </head>
 <body>
 
@@ -82,27 +71,19 @@
 <div class="toast" id="toast"></div>
 
 <script>
-// Firestore 集合前綴：測試環境讀 test_xxx，正式環境讀 xxx（meta 共用）
-const FS_COL  = col => IS_TEST && col !== 'meta' ? 'test_' + col : col;
 let lineUid = '';
 let employees = [];
 let myScores = {};
 let currentFilter = 'all';
 let viewAsUid = ''; // sysadmin 正在模擬的 UID
 
-function _waitForFirebase() {
-  if (window._fsReady) return Promise.resolve();
-  return new Promise(resolve => document.addEventListener('firebase-ready', resolve, { once: true }));
-}
-
 async function init() {
   // 有快取 UID → 直接載入，不等 LIFF，LIFF 在背景靜默刷新
   const cachedUid = localStorage.getItem(LS_UID);
   if (cachedUid) {
     lineUid = cachedUid;
-    document.getElementById('headerSubtitle').textContent = '載入中...';
-    loadDashboard(cachedUid);   // 不 await，立刻開始
-    _refreshLiffUid();          // 背景刷新
+    loadDashboard(cachedUid);
+    _refreshLiffUid();
     return;
   }
   // 第一次沒快取 → 走完整 LIFF 流程
@@ -131,7 +112,6 @@ async function _refreshLiffUid() {
     if (!liff.isLoggedIn()) return;
     const profile = await liff.getProfile();
     if (profile.userId !== lineUid) {
-      // LINE 帳號切換 → 清快取重載
       localStorage.setItem(LS_UID, profile.userId);
       location.reload();
     }
@@ -140,79 +120,23 @@ async function _refreshLiffUid() {
 
 async function loadDashboard(uid) {
   try {
-    await _waitForFirebase();
-
-    // 先嘗試 Firestore（快）；離線時自動 fallback 到 GAS
-    let account;
-    let firestoreAvailable = true;
-    try {
-      account = await _fsDoc(FS_COL('accounts'), uid);
-    } catch (_) {
-      firestoreAvailable = false;
-    }
-
-    if (!firestoreAvailable) {
-      // Firestore 離線（常見於 LINE LIFF 內建瀏覽器）→ 完全走 GAS
-      const data = await callGAS('apiGetDashboard', [uid, IS_TEST]);
-      if (!data || data.error) { showError(data ? data.error : '載入失敗'); return; }
-      if (data.isHR) { _initHRView(); return; }
-      if (data.isSysAdmin) { await _initSysAdminView(uid, data); return; }
-      _renderManagerView(data);
+    const data = await callGAS('apiGetDashboard', [uid, IS_TEST]);
+    if (!data || data.error) {
+      // 身份驗證失敗表示帳號未綁定，清快取並導向綁定頁
+      if (data && data.error === '身份驗證失敗') {
+        localStorage.removeItem(LS_UID);
+        location.href = 'bind.html';
+        return;
+      }
+      showError(data ? data.error : '載入失敗');
       return;
     }
-
-    if (!account) {
-      localStorage.removeItem(LS_UID);
-      location.href = 'bind.html';
-      return;
-    }
-
-    if (account.role === 'HR') {
-      _initHRView();
-      return;
-    }
-
-    // 同時讀 dashboard snapshot + settings（離線時 dashboard = null → 走 GAS fallback）
-    let dashboard = null, settings = null;
-    try {
-      [dashboard, settings] = await Promise.all([
-        _fsDoc(FS_COL('managerDashboard'), uid),
-        _fsDoc('meta', 'settings'),
-      ]);
-    } catch (_) { /* Firestore 離線，繼續走下方 GAS fallback */ }
-
-    if (!dashboard) {
-      const data = await callGAS('apiGetDashboard', [uid, IS_TEST]);
-      if (data.error) { showError(data.error); return; }
-      if (data.isSysAdmin) { await _initSysAdminView(uid, data); return; }
-      _renderManagerView(data);
-      return;
-    }
-
-    if (account.role === '系統管理員') {
-      let sysAccounts = [];
-      try {
-        const col = await _fsCollection(FS_COL('accounts'));
-        sysAccounts = col.map(a => ({ ...a, lineUid: a.id }));
-      } catch (_) { /* Firestore 離線，以空陣列繼續 */ }
-      await _initSysAdminView(uid, { accounts: sysAccounts, settings });
-      return;
-    }
-
-    _renderManagerView({ ...dashboard, settings: settings || {}, myScores: {} });
-    _loadMyScores(uid, dashboard.quarter);
+    if (data.isHR) { _initHRView(); return; }
+    if (data.isSysAdmin) { _initSysAdminView(data); return; }
+    _renderManagerView(data);
   } catch (err) {
     showError('載入失敗：' + err.message);
   }
-}
-
-async function _loadMyScores(uid, quarter) {
-  try {
-    const result = await callGAS('apiGetMyScores', [uid, quarter, IS_TEST]);
-    if (!result || result.error) return;
-    myScores = result;
-    renderEmployeeList(); // 更新評分狀態顯示
-  } catch (_) {}
 }
 
 function _initHRView() {
@@ -225,10 +149,9 @@ function _initHRView() {
     </div>`;
 }
 
-async function _initSysAdminView(sysAdminUid, data) {
+function _initSysAdminView(data) {
   document.getElementById('headerSubtitle').textContent = '系統管理員';
   document.getElementById('sysadminControls').style.display = 'flex';
-  // adminLink already points to sysadmin.html in HTML; no UID in URL needed
 
   const sel = document.getElementById('simSelect');
   (data.accounts || [])
