@@ -7,7 +7,8 @@ import Score from "./pages/Score";
 import SysAdmin from "./pages/SysAdmin";
 import "./styles.css";
 
-function AppRoutes() {
+/** Routes that require LINE authentication */
+function AuthenticatedRoutes() {
   const { ready, error } = useLiff();
 
   if (error) {
@@ -35,7 +36,6 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Dashboard />} />
-      <Route path="/bind" element={<Bind />} />
       <Route path="/score" element={<Score />} />
       <Route path="/admin" element={<Admin />} />
       <Route path="/sysadmin" element={<SysAdmin />} />
@@ -47,7 +47,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppRoutes />
+      <Routes>
+        {/* /bind does NOT require LIFF auth — it's the entry point for new users */}
+        <Route path="/bind" element={<Bind />} />
+        <Route path="/*" element={<AuthenticatedRoutes />} />
+      </Routes>
     </BrowserRouter>
   );
 }
