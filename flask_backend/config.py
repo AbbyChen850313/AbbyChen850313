@@ -54,6 +54,10 @@ HR_SPREADSHEET_ID: str = os.environ.get(
 LIFF_ID: str = os.environ.get("LIFF_ID", "2009611318-5UphK9JK")
 LIFF_ID_TEST: str = os.environ.get("LIFF_ID_TEST", "2009619528-aJO34c6u")
 
+# LINE Login channel IDs (derived from LIFF IDs — no secret)
+LINE_LOGIN_CHANNEL_ID: str = LIFF_ID.split("-")[0]
+LINE_LOGIN_CHANNEL_ID_TEST: str = LIFF_ID_TEST.split("-")[0]
+
 # Allowed CORS origins
 ALLOWED_ORIGINS: list[str] = [
     "https://linchun-hr.web.app",
@@ -72,6 +76,12 @@ def line_channel_token(is_test: bool = False) -> str:
 
 def line_channel_secret(is_test: bool = False) -> str:
     key = "LINE_CHANNEL_SECRET_TEST" if is_test else "LINE_CHANNEL_SECRET"
+    return _get_secret(key)
+
+
+def line_login_channel_secret(is_test: bool = False) -> str:
+    """Channel secret for the LINE Login channel (used for OAuth code exchange)."""
+    key = "LINE_LOGIN_CHANNEL_SECRET_TEST" if is_test else "LINE_LOGIN_CHANNEL_SECRET"
     return _get_secret(key)
 
 

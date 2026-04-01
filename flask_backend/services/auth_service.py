@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 _ALGORITHM = "HS256"
 _TOKEN_TTL_HOURS = 24
+_BIND_TOKEN_TTL_MINUTES = 10
 
 
 # ── Token issuance ─────────────────────────────────────────────────────────
@@ -46,6 +47,27 @@ def issue_session_token(
         "exp": datetime.now(tz=timezone.utc) + timedelta(hours=_TOKEN_TTL_HOURS),
     }
     return jwt.encode(payload, config.jwt_secret(), algorithm=_ALGORITHM)
+
+
+def issue_bind_token(line_uid: str, display_name: str) -> str:
+    """Short-lived token (10 min) used by external-browser bind flow."""
+    payload = {
+        "lineUid": line_uid,
+        "displayName": display_name,
+        "purpose": "bind",
+        "exp": datetime.now(tz=timezone.utc) + timedelta(minutes=_BIND_TOKEN_TTL_MINUTES),
+    }
+    return jwt.encode(payload, config.jwt_secret(), algorithm=_ALGORITHM)
+
+
+def decode_bind_token(token: str) -> dict | None:
+    try:
+        payload = jwt.decode(token, config.jwt_secret(), algorithms=[_ALGORITHM])
+        if payload.get("purpose") != "bind":
+            return None
+        return payload
+    except jwt.InvalidTokenError:
+        return None
 
 
 def decode_session_token(token: str) -> dict | None:

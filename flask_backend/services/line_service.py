@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 _LINE_VERIFY_URL = "https://api.line.me/oauth2/v2.1/verify"
 _LINE_PROFILE_URL = "https://api.line.me/v2/profile"
 _LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push"
+_LINE_TOKEN_URL = "https://api.line.me/oauth2/v2.1/token"
 
 
 def verify_access_token(access_token: str) -> dict | None:
@@ -43,6 +44,32 @@ def verify_access_token(access_token: str) -> dict | None:
         return None
 
     return profile_resp.json()
+
+
+def exchange_auth_code(code: str, redirect_uri: str, is_test: bool = False) -> str | None:
+    """
+    Exchange a LINE Login OAuth2 authorisation code for an access token.
+    Returns the access token string, or None on failure.
+    """
+    channel_id = (
+        config.LINE_LOGIN_CHANNEL_ID_TEST if is_test else config.LINE_LOGIN_CHANNEL_ID
+    )
+    resp = requests.post(
+        _LINE_TOKEN_URL,
+        data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": redirect_uri,
+            "client_id": channel_id,
+            "client_secret": config.line_login_channel_secret(is_test),
+        },
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        timeout=10,
+    )
+    if resp.status_code != 200:
+        logger.warning("LINE code exchange failed: %s", resp.text)
+        return None
+    return resp.json().get("access_token")
 
 
 def push_message(line_uid: str, text: str, is_test: bool = False) -> bool:

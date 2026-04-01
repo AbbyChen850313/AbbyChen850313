@@ -17,6 +17,8 @@ declare global {
 export interface ILiffAdapter {
   /** Load SDK + call liff.init(). Must be awaited before other methods. */
   init(): Promise<void>;
+  /** True when running inside LINE's in-app browser. */
+  isInClient(): boolean;
   isLoggedIn(): boolean;
   login(): void;
   /** Returns the LIFF access token; init() must have been called first. */
@@ -55,6 +57,10 @@ class RealLiffAdapter implements ILiffAdapter {
         )
       ),
     ]);
+  }
+
+  isInClient(): boolean {
+    return window.liff?.isInClient?.() ?? false;
   }
 
   isLoggedIn(): boolean {

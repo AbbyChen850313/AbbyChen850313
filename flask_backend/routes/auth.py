@@ -10,12 +10,14 @@ from flask import Blueprint, g, jsonify, request
 
 import config
 from services.auth_service import (
+    decode_bind_token,
+    issue_bind_token,
     issue_session_token,
     require_auth,
     require_hr,
     require_sysadmin,
 )
-from services.line_service import push_message, verify_access_token
+from services.line_service import exchange_auth_code, push_message, verify_access_token
 from services.sheets_service import SheetsService
 
 logger = logging.getLogger(__name__)
@@ -26,24 +28,11 @@ def _sheets(is_test: bool = False) -> SheetsService:
     return SheetsService(is_test=is_test)
 
 
-# ── POST /api/auth/session ─────────────────────────────────────────────────
-
-@auth_bp.route("/session", methods=["POST"])
-def create_session():
+def _session_from_access_token(access_token: str, is_test: bool):
     """
-    Verify a LIFF access token, look up the bound account,
-    and return a signed session JWT.
-
-    Body: { "accessToken": str, "isTest": bool }
+    Shared logic: verify access token, look up account, return JSON response.
+    Used by both LIFF session and LINE Login OAuth session endpoints.
     """
-    body = request.get_json(silent=True) or {}
-    access_token = body.get("accessToken", "")
-    is_test = bool(body.get("isTest", False))
-
-    if not access_token:
-        return jsonify({"error": "缺少 accessToken"}), 400
-
-    # Verify with LINE
     profile = verify_access_token(access_token)
     if not profile:
         return jsonify({"error": "LINE Token 驗證失敗"}), 401
@@ -51,12 +40,11 @@ def create_session():
     line_uid: str = profile["userId"]
     display_name: str = profile.get("displayName", "")
 
-    # Look up bound account
     sheets = _sheets(is_test)
     account, _ = sheets.find_account_by_uid(line_uid)
     if not account:
-        return jsonify({"error": "帳號未綁定", "needBind": True}), 401
-
+        bind_token = issue_bind_token(line_uid, display_name)
+        return jsonify({"error": "帳號未綁定", "needBind": True, "bindToken": bind_token}), 401
     if account.get("status") != "已授權":
         return jsonify({"error": "帳號尚未授權，請聯繫 HR"}), 403
 
@@ -74,6 +62,49 @@ def create_session():
     })
 
 
+# ── POST /api/auth/session ─────────────────────────────────────────────────
+
+@auth_bp.route("/session", methods=["POST"])
+def create_session():
+    """
+    Verify a LIFF access token and return a signed session JWT.
+    Body: { "accessToken": str, "isTest": bool }
+    """
+    body = request.get_json(silent=True) or {}
+    access_token = body.get("accessToken", "")
+    is_test = bool(body.get("isTest", False))
+
+    if not access_token:
+        return jsonify({"error": "缺少 accessToken"}), 400
+
+    return _session_from_access_token(access_token, is_test)
+
+
+# ── POST /api/auth/line-oauth ──────────────────────────────────────────────
+
+@auth_bp.route("/line-oauth", methods=["POST"])
+def line_oauth_session():
+    """
+    Exchange a LINE Login OAuth2 authorisation code for a session JWT.
+    Used by external-browser (non-LIFF) login flow.
+
+    Body: { "code": str, "redirectUri": str, "isTest": bool }
+    """
+    body = request.get_json(silent=True) or {}
+    code = (body.get("code") or "").strip()
+    redirect_uri = (body.get("redirectUri") or "").strip()
+    is_test = bool(body.get("isTest", False))
+
+    if not code or not redirect_uri:
+        return jsonify({"error": "缺少 code 或 redirectUri"}), 400
+
+    access_token = exchange_auth_code(code, redirect_uri, is_test)
+    if not access_token:
+        return jsonify({"error": "LINE 授權失敗，請重試"}), 401
+
+    return _session_from_access_token(access_token, is_test)
+
+
 # ── POST /api/auth/bind ────────────────────────────────────────────────────
 
 @auth_bp.route("/bind", methods=["POST"])
@@ -89,21 +120,31 @@ def bind_account():
     }
     """
     body = request.get_json(silent=True) or {}
-    access_token = body.get("accessToken", "")
     name = (body.get("name") or "").strip()
     employee_id = (body.get("employeeId") or "").strip()
     is_test = bool(body.get("isTest", False))
 
-    if not all([access_token, name, employee_id]):
-        return jsonify({"error": "缺少必要欄位（accessToken / name / employeeId）"}), 400
+    if not name or not employee_id:
+        return jsonify({"error": "缺少姓名或員工編號"}), 400
 
-    # Verify LINE identity
-    profile = verify_access_token(access_token)
-    if not profile:
-        return jsonify({"error": "LINE Token 驗證失敗"}), 401
+    # Resolve LINE identity: accept either LIFF access token or bind token
+    bind_token_str = (body.get("bindToken") or "").strip()
+    access_token = (body.get("accessToken") or "").strip()
 
-    line_uid: str = profile["userId"]
-    display_name: str = profile.get("displayName", "")
+    if bind_token_str:
+        payload = decode_bind_token(bind_token_str)
+        if not payload:
+            return jsonify({"error": "綁定憑證無效或已過期，請重新整理"}), 401
+        line_uid: str = payload["lineUid"]
+        display_name: str = payload.get("displayName", "")
+    elif access_token:
+        profile = verify_access_token(access_token)
+        if not profile:
+            return jsonify({"error": "LINE Token 驗證失敗"}), 401
+        line_uid = profile["userId"]
+        display_name = profile.get("displayName", "")
+    else:
+        return jsonify({"error": "缺少 accessToken 或 bindToken"}), 400
 
     sheets = _sheets(is_test)
 

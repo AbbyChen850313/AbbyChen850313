@@ -47,17 +47,26 @@ export default function Bind() {
       return;
     }
 
+    // Resolve LINE identity: LIFF token (inside LINE) or bind token (external browser)
+    const isLineApp = /Line\//i.test(navigator.userAgent);
+    const accessToken = isLineApp ? liffAdapter.getAccessToken() : null;
+    const bindToken = !isLineApp ? sessionStorage.getItem("line_bind_token") : null;
+
+    if (!accessToken && !bindToken) {
+      setError("LINE 身份驗證遺失，請重新整理頁面");
+      return;
+    }
+
     setLoading(true);
     try {
-      const accessToken: string = liffAdapter.getAccessToken();
-
       const { data } = await api.post("/api/auth/bind", {
-        accessToken,
+        ...(accessToken ? { accessToken } : { bindToken }),
         name: name.trim(),
         employeeId: employeeId.trim(),
         isTest: IS_TEST,
       });
 
+      sessionStorage.removeItem("line_bind_token");
       setSuccessName(data.name);
       setStep("success");
     } catch (err: any) {
