@@ -4,14 +4,10 @@
  */
 
 import { useState } from "react";
+import { liffAdapter } from "../adapters/liff";
 import { api } from "../services/api";
 
-const LIFF_ID = import.meta.env.VITE_LIFF_ID as string;
 const IS_TEST = import.meta.env.VITE_IS_TEST === "true";
-
-declare global {
-  interface Window { liff: any; }
-}
 
 type Step = "code" | "identity" | "success";
 
@@ -53,11 +49,7 @@ export default function Bind() {
 
     setLoading(true);
     try {
-      // Ensure LIFF is initialised
-      if (!window.liff) {
-        throw new Error("LINE SDK 尚未載入，請重新整理");
-      }
-      const accessToken: string = window.liff.getAccessToken();
+      const accessToken: string = liffAdapter.getAccessToken();
 
       const { data } = await api.post("/api/auth/bind", {
         accessToken,

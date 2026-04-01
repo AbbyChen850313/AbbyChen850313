@@ -2,26 +2,18 @@
  * LIFF initialisation hook.
  *
  * On mount:
- *   1. Load the LIFF SDK (injected as a script tag so it can be lazy-loaded)
- *   2. Call liff.init()
- *   3. If not logged in → liff.login()
- *   4. Verify the access token with our backend → receive session JWT
- *   5. Store JWT in localStorage and expose session info
+ *   1. Check for an existing valid session JWT
+ *   2. If none, delegate LIFF init/login to liffAdapter
+ *   3. Exchange the LIFF access token for a session JWT
+ *   4. Store JWT in localStorage and expose session info
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { liffAdapter } from "../adapters/liff";
 import { api } from "../services/api";
 
-// Determine environment from LIFF ID env var
-const LIFF_ID = import.meta.env.VITE_LIFF_ID as string;
 const IS_TEST = import.meta.env.VITE_IS_TEST === "true";
 const SESSION_KEY = IS_TEST ? "session_token_test" : "session_token";
-
-declare global {
-  interface Window {
-    liff: any;
-  }
-}
 
 export interface LiffState {
   ready: boolean;
@@ -30,20 +22,6 @@ export interface LiffState {
   lineUid: string | null;
   name: string | null;
   role: string | null;
-}
-
-function loadLiffSdk(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (window.liff) {
-      resolve();
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = "https://static.line-scdn.net/liff/edge/2/sdk.js";
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("LINE SDK 載入失敗"));
-    document.head.appendChild(script);
-  });
 }
 
 export function useLiff(): LiffState {
@@ -68,20 +46,15 @@ export function useLiff(): LiffState {
         return;
       }
 
-      // 2. Fresh LIFF init
-      await loadLiffSdk();
-      await Promise.race([
-        window.liff.init({ liffId: LIFF_ID }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(`LIFF 初始化逾時，請確認 LINE Developers Console 的 Endpoint URL 已設為 https://linchun-hr.web.app`)), 12000)
-        ),
-      ]);
-      if (!window.liff.isLoggedIn()) {
-        window.liff.login();
+      // 2. Fresh LIFF init via adapter (load SDK + liff.init + timeout)
+      await liffAdapter.init();
+
+      if (!liffAdapter.isLoggedIn()) {
+        liffAdapter.login();
         return;
       }
 
-      const accessToken: string = window.liff.getAccessToken();
+      const accessToken = liffAdapter.getAccessToken();
 
       // 3. Exchange access token for session JWT
       const { data } = await api.post("/api/auth/session", {
@@ -127,8 +100,6 @@ export function getSessionToken(): string | null {
 /** Clear session and reload for logout. */
 export function logout(): void {
   localStorage.removeItem(SESSION_KEY);
-  if (window.liff?.isLoggedIn?.()) {
-    window.liff.logout();
-  }
+  liffAdapter.logout();
   window.location.reload();
 }

@@ -117,7 +117,9 @@ export default function Score() {
         </div>
 
         <div className="score-items">
-          {(scoreItems ?? defaultItems()).map((item, idx) => {
+          {!scoreItems ? (
+            <div className="loading-hint">載入評分項目中…</div>
+          ) : scoreItems.map((item, idx) => {
             const key = `item${idx + 1}` as keyof ScoreItems;
             return (
               <div key={item.code} className="score-item">
@@ -199,13 +201,3 @@ export default function Score() {
   );
 }
 
-function defaultItems(): ScoreItem[] {
-  return [
-    { code: "item1", name: "【職能專業度】", description: "根據公司任用職務項目，能充分自主完成工作" },
-    { code: "item2", name: "【工作效率】", description: "工作效率高，如期達成工作目標" },
-    { code: "item3", name: "【成本意識】", description: "成本意識強烈，能積極節省，避免浪費" },
-    { code: "item4", name: "【部門合作】", description: "協作能力，能與同部門、跨部門同事配合" },
-    { code: "item5", name: "【責任感】", description: "具有極責任心，能徹底達成任務" },
-    { code: "item6", name: "【主動積極】", description: "能自動自發與人合作解決問題" },
-  ];
-}

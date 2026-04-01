@@ -6,6 +6,7 @@ Mirrors all the GAS Sheet operations from Auth.gs, Employees.gs, Scoring.gs, Con
 from __future__ import annotations
 
 import logging
+import time as _time
 from datetime import datetime
 from functools import cached_property
 from typing import Any
@@ -74,6 +75,34 @@ def _safe(row: list, idx: int, default: Any = "") -> Any:
     return row[idx] if len(row) > idx else default
 
 
+# ── Worksheet-level TTL cache ──────────────────────────────────────────────
+# Keyed by "{env}:{ws_name}". Shared across requests within the same process.
+# Write operations must call _invalidate() so stale data is never served.
+
+_CACHE_TTL: float = 30.0  # seconds
+_ws_cache: dict[str, tuple[list[list], float]] = {}
+
+
+def _cache_key(is_test: bool, ws_name: str) -> str:
+    return f"{'test' if is_test else 'prod'}:{ws_name}"
+
+
+def _cached_rows(ws, is_test: bool, ws_name: str) -> list[list]:
+    """Return cached get_all_values(), refreshing if stale."""
+    key = _cache_key(is_test, ws_name)
+    entry = _ws_cache.get(key)
+    if entry and (_time.monotonic() - entry[1]) < _CACHE_TTL:
+        return entry[0]
+    rows = ws.get_all_values()
+    _ws_cache[key] = (rows, _time.monotonic())
+    return rows
+
+
+def _invalidate(is_test: bool, ws_name: str) -> None:
+    """Evict a worksheet from the cache after a write."""
+    _ws_cache.pop(_cache_key(is_test, ws_name), None)
+
+
 class SheetsService:
     """All Google Sheets read/write operations for the 考核 system."""
 
@@ -116,7 +145,8 @@ class SheetsService:
     # ── Settings (系統設定) ────────────────────────────────────────────────
 
     def get_settings(self) -> dict[str, str]:
-        rows = self.worksheet("系統設定").get_all_values()
+        ws = self.worksheet("系統設定")
+        rows = _cached_rows(ws, self.is_test, "系統設定")
         return {
             row[0]: (row[1] if len(row) > 1 else "")
             for row in rows[1:]
@@ -125,11 +155,12 @@ class SheetsService:
 
     def update_settings(self, new_settings: dict[str, str]) -> None:
         ws = self.worksheet("系統設定")
-        rows = ws.get_all_values()
+        rows = _cached_rows(ws, self.is_test, "系統設定")
         for i, row in enumerate(rows[1:], start=2):
             key = row[0] if row else ""
             if key in new_settings:
                 ws.update_cell(i, 2, new_settings[key])
+        _invalidate(self.is_test, "系統設定")
 
     # ── Accounts (LINE帳號) ────────────────────────────────────────────────
 
@@ -151,7 +182,7 @@ class SheetsService:
     def find_account_by_uid(self, line_uid: str) -> tuple[dict | None, int]:
         """Return (account_dict, 1-based row index) or (None, -1)."""
         ws = self.worksheet("LINE帳號")
-        rows = ws.get_all_values()
+        rows = _cached_rows(ws, self.is_test, "LINE帳號")
         uid_col = _COL_ACCOUNT["testUid"] if self.is_test else _COL_ACCOUNT["lineUid"]
         for i, row in enumerate(rows[1:], start=2):  # row i is 1-based sheet row
             if len(row) > uid_col and row[uid_col] == line_uid:
@@ -163,7 +194,7 @@ class SheetsService:
     ) -> tuple[dict | None, int]:
         """Match by name + employeeId for binding."""
         ws = self.worksheet("LINE帳號")
-        rows = ws.get_all_values()
+        rows = _cached_rows(ws, self.is_test, "LINE帳號")
         for i, row in enumerate(rows[1:], start=2):
             row_name = _safe(row, _COL_ACCOUNT["name"])
             row_emp_id = _safe(row, _COL_ACCOUNT["employeeId"])
@@ -173,7 +204,7 @@ class SheetsService:
 
     def get_all_accounts(self) -> list[dict]:
         ws = self.worksheet("LINE帳號")
-        rows = ws.get_all_values()
+        rows = _cached_rows(ws, self.is_test, "LINE帳號")
         return [
             self._parse_account_row(row)
             for row in rows[1:]
@@ -196,6 +227,7 @@ class SheetsService:
             ws.update_cell(sheet_row, _COL_ACCOUNT["displayName"] + 1, display_name)
             ws.update_cell(sheet_row, _COL_ACCOUNT["boundAt"] + 1, now_str)
             ws.update_cell(sheet_row, _COL_ACCOUNT["status"] + 1, "已授權")
+        _invalidate(self.is_test, "LINE帳號")
 
     def unbind_account(self, sheet_row: int) -> None:
         ws = self.worksheet("LINE帳號")
@@ -206,11 +238,13 @@ class SheetsService:
             ws.update_cell(sheet_row, _COL_ACCOUNT["displayName"] + 1, "")
             ws.update_cell(sheet_row, _COL_ACCOUNT["boundAt"] + 1, "")
             ws.update_cell(sheet_row, _COL_ACCOUNT["status"] + 1, "")
+        _invalidate(self.is_test, "LINE帳號")
 
     # ── Employees (員工資料) ───────────────────────────────────────────────
 
     def get_all_employees(self) -> list[dict]:
-        rows = self.worksheet("員工資料").get_all_values()
+        ws = self.worksheet("員工資料")
+        rows = _cached_rows(ws, self.is_test, "員工資料")
         return [
             {
                 "employeeId": _safe(row, 0),
@@ -255,13 +289,15 @@ class SheetsService:
         dest_ws.resize(rows=1)
         if eligible:
             dest_ws.append_rows(eligible, value_input_option="USER_ENTERED")
+        _invalidate(self.is_test, "員工資料")
 
         return len(eligible)
 
     # ── Manager weights (主管權重) ─────────────────────────────────────────
 
     def get_manager_responsibilities(self) -> list[dict]:
-        rows = self.worksheet("主管權重").get_all_values()
+        ws = self.worksheet("主管權重")
+        rows = _cached_rows(ws, self.is_test, "主管權重")
         result = []
         c = _COL_WEIGHT
         for row in rows[1:]:
@@ -280,7 +316,8 @@ class SheetsService:
     # ── Score items (評分項目) ─────────────────────────────────────────────
 
     def get_score_items(self) -> list[dict]:
-        rows = self.worksheet("評分項目").get_all_values()
+        ws = self.worksheet("評分項目")
+        rows = _cached_rows(ws, self.is_test, "評分項目")
         return [
             {"code": _safe(row, 0), "name": _safe(row, 1), "description": _safe(row, 2)}
             for row in rows[1:]
@@ -334,7 +371,8 @@ class SheetsService:
         ]
 
     def get_scores_by_manager(self, quarter: str, manager_name: str) -> list[dict]:
-        rows = self.worksheet("評分記錄").get_all_values()
+        ws = self.worksheet("評分記錄")
+        rows = _cached_rows(ws, self.is_test, "評分記錄")
         c = _COL_SCORE
         return [
             self._parse_score_row(row)
@@ -344,7 +382,8 @@ class SheetsService:
         ]
 
     def get_all_scores(self, quarter: str) -> list[dict]:
-        rows = self.worksheet("評分記錄").get_all_values()
+        ws = self.worksheet("評分記錄")
+        rows = _cached_rows(ws, self.is_test, "評分記錄")
         c = _COL_SCORE
         return [
             self._parse_score_row(row)
@@ -355,7 +394,7 @@ class SheetsService:
     def upsert_score(self, score_data: dict) -> None:
         """Update existing row or append a new one."""
         ws = self.worksheet("評分記錄")
-        rows = ws.get_all_values()
+        rows = _cached_rows(ws, self.is_test, "評分記錄")
         c = _COL_SCORE
         for i, row in enumerate(rows[1:], start=2):
             if (
@@ -368,5 +407,7 @@ class SheetsService:
                     [self._score_to_row(score_data)],
                     value_input_option="USER_ENTERED",
                 )
+                _invalidate(self.is_test, "評分記錄")
                 return
         ws.append_row(self._score_to_row(score_data), value_input_option="USER_ENTERED")
+        _invalidate(self.is_test, "評分記錄")
