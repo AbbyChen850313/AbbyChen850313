@@ -1,0 +1,7 @@
+.git
+.github
+frontend/node_modules
+flask_backend/__pycache__
+flask_backend/.pytest_cache
+*.pyc
+*.pyo
