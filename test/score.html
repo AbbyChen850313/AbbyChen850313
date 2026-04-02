@@ -3,8 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>評分</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../shared/styles.css">
+  <script src="../shared/config.js"></script>
+  <script src="../shared/utils.js"></script>
 </head>
 <body>
 
@@ -26,7 +31,7 @@
     <span class="info-label">年資</span>
     <span class="info-value" id="empTenure">-</span>
   </div>
-  <div id="probationAlert" style="display:none;background:#fff9c4;border-radius:6px;padding:8px 10px;margin-top:8px;font-size:12px;color:#f57f17">
+  <div id="probationAlert" style="display:none;background:rgba(255,209,102,0.15);border:1px solid rgba(255,209,102,0.4);border-radius:8px;padding:8px 10px;margin-top:8px;font-size:12px;color:var(--yellow)">
     ⚠️ 試用期員工（未滿3個月），評分結果作為試用期表現參考。
   </div>
 </div>
@@ -77,9 +82,6 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const LIFF_ID = '2009611318-5UphK9JK';
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
-
 const SCORE_ITEMS = [
   { key: 'item1', label: '【職能專業度】', desc: '根據公司任用職務項目，能充分自主完成工作' },
   { key: 'item2', label: '【工作效率】', desc: '工作效率高，如期達成工作目標' },
@@ -96,7 +98,7 @@ const GRADES = [
 ];
 
 const params = new URLSearchParams(location.search);
-let lineUid = decodeURIComponent(params.get('uid') || '');
+let lineUid = decodeURIComponent(params.get('uid') || '') || localStorage.getItem(LS_UID) || '';
 const employeeName = decodeURIComponent(params.get('eid') || '');
 const section = decodeURIComponent(params.get('section') || '');
 
@@ -166,7 +168,7 @@ function updatePreview() {
 }
 
 function loadExistingScores() {
-  callGAS('apiGetMyScores', [lineUid, null]).then(allScores => {
+  callGAS('apiGetMyScores', [lineUid, null, IS_TEST]).then(allScores => {
     const existing = allScores[employeeName];
     if (!existing) return;
     Object.entries(existing.scores || {}).forEach(([key, val]) => { if (val) selectGrade(key, val); });
@@ -176,7 +178,7 @@ function loadExistingScores() {
     if (existing.status === '已送出') document.getElementById('submitBtn').textContent = '修改送出';
   });
 
-  callGAS('apiGetScoreStatus', [lineUid]).then(status => {
+  callGAS('apiGetScoreStatus', [lineUid, IS_TEST]).then(status => {
     const emp = (status.employees || []).find(e => e.name === employeeName);
     if (emp) {
       document.getElementById('empTenure').textContent = emp.tenure || '-';
@@ -197,6 +199,7 @@ function getFormData() {
     scores: { ...currentScores },
     special: document.getElementById('specialAdj').value || '0',
     note: document.getElementById('noteText').value,
+    isTest: IS_TEST,
   };
 }
 
@@ -231,20 +234,6 @@ function submitScore() {
       setTimeout(() => history.back(), 1500);
     }
   });
-}
-
-function callGAS(action, args) {
-  return fetch(GAS_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action, args: args || [] }),
-  }).then(r => r.json());
-}
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
 }
 
 const s = document.createElement('script');
