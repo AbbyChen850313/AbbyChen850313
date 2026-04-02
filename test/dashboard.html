@@ -3,19 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>考核評分系統</title>
-  <link rel="stylesheet" href="styles.css">
-  <script src="firebase-config.js"></script>
-  <script type="module">
-    import { initializeApp }              from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js';
-    import { getFirestore, doc, getDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js';
-    const _app = initializeApp(FIREBASE_CONFIG);
-    window._db = getFirestore(_app);
-    window._fsDoc     = (col, id)  => getDoc(doc(_db, col, id)).then(s => s.exists() ? s.data() : null);
-    window._fsCollection = (col)   => getDocs(collection(_db, col)).then(s => s.docs.map(d => ({ id: d.id, ...d.data() })));
-    window._fsReady = true;
-    document.dispatchEvent(new Event('firebase-ready'));
-  </script>
+  <link rel="stylesheet" href="../shared/styles.css">
+  <script src="../shared/config.js"></script>
+  <script src="../shared/utils.js"></script>
 </head>
 <body>
 
@@ -77,29 +71,19 @@
 <div class="toast" id="toast"></div>
 
 <script>
-const LIFF_ID = location.pathname.includes('/test/') ? '2009619528-aJO34c6u' : '2009611318-5UphK9JK';
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
-
-const LS_UID = location.pathname.includes('/test/') ? 'liff_uid_test' : 'liff_uid';
 let lineUid = '';
 let employees = [];
 let myScores = {};
 let currentFilter = 'all';
 let viewAsUid = ''; // sysadmin 正在模擬的 UID
 
-function _waitForFirebase() {
-  if (window._fsReady) return Promise.resolve();
-  return new Promise(resolve => document.addEventListener('firebase-ready', resolve, { once: true }));
-}
-
 async function init() {
   // 有快取 UID → 直接載入，不等 LIFF，LIFF 在背景靜默刷新
   const cachedUid = localStorage.getItem(LS_UID);
   if (cachedUid) {
     lineUid = cachedUid;
-    document.getElementById('headerSubtitle').textContent = '載入中...';
-    loadDashboard(cachedUid);   // 不 await，立刻開始
-    _refreshLiffUid();          // 背景刷新
+    loadDashboard(cachedUid);
+    _refreshLiffUid();
     return;
   }
   // 第一次沒快取 → 走完整 LIFF 流程
@@ -128,7 +112,6 @@ async function _refreshLiffUid() {
     if (!liff.isLoggedIn()) return;
     const profile = await liff.getProfile();
     if (profile.userId !== lineUid) {
-      // LINE 帳號切換 → 清快取重載
       localStorage.setItem(LS_UID, profile.userId);
       location.reload();
     }
@@ -137,63 +120,38 @@ async function _refreshLiffUid() {
 
 async function loadDashboard(uid) {
   try {
-    await _waitForFirebase();
-    // 先從 Firestore 讀帳號資料（快），確認角色
-    const account = await _fsDoc('accounts', uid);
-    if (!account) {
-      localStorage.removeItem(LS_UID);
-      location.href = 'bind.html';
+    const data = await callGAS('apiGetDashboard', [uid, IS_TEST]);
+    if (!data || data.error) {
+      // 身份驗證失敗表示帳號未綁定，清快取並導向綁定頁
+      if (data && data.error === '身份驗證失敗') {
+        localStorage.removeItem(LS_UID);
+        location.href = 'bind.html';
+        return;
+      }
+      showError(data ? data.error : '載入失敗');
       return;
     }
-
-    if (account.role === 'HR') {
-      localStorage.setItem(LS_UID, uid);
-      location.href = `admin.html?uid=${encodeURIComponent(uid)}`;
-      return;
-    }
-
-    // 同時讀 dashboard snapshot + settings
-    const [dashboard, settings] = await Promise.all([
-      _fsDoc('managerDashboard', uid),
-      _fsDoc('meta', 'settings'),
-    ]);
-
-    if (!dashboard) {
-      // Firestore 尚未有資料（第一次），fallback 到 GAS
-      const data = await callGAS('apiGetDashboard', [uid]);
-      if (data.error) { showError(data.error); return; }
-      if (data.isSysAdmin) { await _initSysAdminView(uid, data); return; }
-      _renderManagerView(data);
-      return;
-    }
-
-    if (account.role === '系統管理員') {
-      const accounts = await _fsCollection('accounts');
-      await _initSysAdminView(uid, { accounts: accounts.map(a => ({ ...a, lineUid: a.id })), settings });
-      return;
-    }
-
-    _renderManagerView({ ...dashboard, settings: settings || {}, myScores: {} });
-    // 背景補齊 myScores（草稿/已送出狀態）
-    _loadMyScores(uid, dashboard.quarter);
+    if (data.isHR) { _initHRView(); return; }
+    if (data.isSysAdmin) { _initSysAdminView(data); return; }
+    _renderManagerView(data);
   } catch (err) {
     showError('載入失敗：' + err.message);
   }
 }
 
-async function _loadMyScores(uid, quarter) {
-  try {
-    const result = await callGAS('apiGetMyScores', [uid, quarter]);
-    if (!result || result.error) return;
-    myScores = result;
-    renderEmployeeList(); // 更新評分狀態顯示
-  } catch (_) {}
+function _initHRView() {
+  document.getElementById('headerSubtitle').textContent = 'HR 管理後台';
+  document.getElementById('employeeList').innerHTML = `
+    <div style="padding:40px 20px;text-align:center">
+      <a href="admin.html" class="btn btn-primary" style="display:inline-block;padding:14px 32px;text-decoration:none;border-radius:8px">
+        ⚙️ 進入 HR 管理後台
+      </a>
+    </div>`;
 }
 
-async function _initSysAdminView(sysAdminUid, data) {
+function _initSysAdminView(data) {
   document.getElementById('headerSubtitle').textContent = '系統管理員';
   document.getElementById('sysadminControls').style.display = 'flex';
-  document.getElementById('adminLink').href = `sysadmin.html?uid=${encodeURIComponent(sysAdminUid)}`;
 
   const sel = document.getElementById('simSelect');
   (data.accounts || [])
@@ -220,7 +178,7 @@ async function loadAsUser(targetUid) {
   document.getElementById('employeeList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
 
   try {
-    const data = await callGAS('apiGetDashboard', [targetUid]);
+    const data = await callGAS('apiGetDashboard', [targetUid, IS_TEST]);
     if (data.error || data.isSysAdmin || data.isHR) {
       document.getElementById('employeeList').innerHTML =
         `<div class="loading" style="color:#888">${data.error || '此帳號無員工清單'}</div>`;
@@ -296,26 +254,12 @@ function filterEmployees(type, btn) {
 }
 
 function goToScore(encodedName, encodedSection) {
-  const uid = viewAsUid || lineUid;
-  location.href = `score.html?uid=${encodeURIComponent(uid)}&eid=${encodedName}&section=${encodedSection}`;
-}
-
-function callGAS(action, args) {
-  return fetch(GAS_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action, args: args || [] }),
-  }).then(r => r.json());
+  if (viewAsUid) localStorage.setItem(LS_UID, viewAsUid);
+  location.href = `score.html?eid=${encodedName}&section=${encodedSection}`;
 }
 
 function showError(msg) {
   document.getElementById('employeeList').innerHTML = `<div class="loading" style="color:#f44336">${msg}</div>`;
-}
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2500);
 }
 
 const s = document.createElement('script');
