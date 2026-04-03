@@ -4,44 +4,47 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>系統管理員</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="../shared/styles.css">
+  <script src="../shared/config.js"></script>
+  <script src="../shared/utils.js"></script>
   <style>
-    .tab-bar { display: flex; background: white; border-bottom: 1px solid #eee; padding: 0 8px; }
-    .tab-btn { flex: 1; padding: 12px 2px; border: none; background: none; font-size: 12px; color: #888; border-bottom: 2px solid transparent; cursor: pointer; }
-    .tab-btn.active { color: #06c755; border-bottom-color: #06c755; font-weight: bold; }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
 
     /* 模擬視角覆蓋層 */
-    .sim-view { display:none; position:fixed; inset:0; background:#f5f5f5; z-index:200; overflow-y:auto; }
+    .sim-view { display:none; position:fixed; inset:0; background:var(--bg); background-attachment:fixed; z-index:200; overflow-y:auto; }
     .sim-view.open { display:block; }
-    .sim-header { background:linear-gradient(135deg,#7b1fa2,#4a148c); color:white; padding:16px; display:flex; align-items:center; gap:12px; }
+    .sim-header { background:rgba(0,0,0,0.3); backdrop-filter:blur(12px); color:white; padding:16px; display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--card-border); }
     .sim-back { background:none; border:none; color:white; font-size:22px; cursor:pointer; padding:0 4px; line-height:1; }
     .sim-title { font-size:16px; font-weight:bold; }
     .sim-sub { font-size:12px; opacity:.8; margin-top:2px; }
 
     .env-badge { display:inline-block; padding:4px 12px; border-radius:20px; font-size:13px; font-weight:bold; }
-    .env-test  { background:#e8f5e9; color:#2e7d32; }
-    .env-prod  { background:#fff3e0; color:#e65100; }
+    .env-test  { background:rgba(76,223,138,0.2); color:var(--green); }
+    .env-prod  { background:rgba(255,209,102,0.2); color:var(--yellow); }
 
-    .info-card { background:white; border-radius:8px; padding:14px 16px; margin-bottom:10px; box-shadow:0 1px 4px rgba(0,0,0,0.06); }
-    .info-row  { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #f5f5f5; font-size:13px; }
+    .info-card { background:var(--card); border:1px solid var(--card-border); border-radius:10px; padding:14px 16px; margin-bottom:10px; backdrop-filter:blur(6px); }
+    .info-row  { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--divider); font-size:13px; }
     .info-row:last-child { border-bottom:none; }
-    .info-label { color:#888; }
-    .info-value { font-weight:bold; color:#333; }
+    .info-label { color:var(--text-muted); }
+    .info-value { font-weight:bold; color:var(--text); }
   </style>
 </head>
 <body>
 
-<div class="header" style="background:linear-gradient(135deg,#7b1fa2,#4a148c)">
-  <h1>🔧 系統管理員</h1>
-  <div class="subtitle">SysAdmin 控制台</div>
+<div class="header" style="position:relative">
+  <a href="dashboard.html" style="text-decoration:none;color:inherit">
+    <h1>🔧 系統管理員</h1>
+    <div class="subtitle">SysAdmin 控制台</div>
+  </a>
+  <a id="homeLink" href="dashboard.html" style="position:absolute;top:50%;right:16px;transform:translateY(-50%);font-size:12px;color:rgba(255,255,255,0.8);text-decoration:none;background:rgba(255,255,255,0.15);padding:6px 12px;border-radius:6px">← 首頁</a>
 </div>
 
 <div class="tab-bar">
   <button class="tab-btn active" onclick="switchTab('status')">系統狀態</button>
   <button class="tab-btn" onclick="switchTab('simulate')">模擬視角</button>
   <button class="tab-btn" onclick="switchTab('accounts')">帳號管理</button>
+  <button class="tab-btn" onclick="switchTab('settings')">系統設定</button>
   <button class="tab-btn" onclick="switchTab('logs')">日誌</button>
 </div>
 
@@ -80,6 +83,55 @@
   </div>
 </div>
 
+<!-- ── 系統設定 ── -->
+<div class="tab-content" id="tab-settings">
+  <div class="score-section" style="margin:8px">
+    <div class="section-title">評分期間設定</div>
+    <div class="setting-group">
+      <label class="setting-label">評分期間描述（顯示用）</label>
+      <input type="text" class="setting-input" id="sys_period" placeholder="如：115/1~3月">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">評分開始日</label>
+      <input type="date" class="setting-input" id="sys_start">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">評分截止日</label>
+      <input type="date" class="setting-input" id="sys_end">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">通知時間點1</label>
+      <input type="date" class="setting-input" id="sys_notify1">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">通知時間點2</label>
+      <input type="date" class="setting-input" id="sys_notify2">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">當前季度（如：115Q1）</label>
+      <input type="text" class="setting-input" id="sys_quarter" placeholder="115Q1">
+    </div>
+    <div class="btn-group" style="padding:0;margin-top:12px">
+      <button class="btn btn-primary" onclick="saveSysSettings()">儲存設定</button>
+    </div>
+  </div>
+
+  <div class="score-section" style="margin:8px">
+    <div class="section-title">系統管理設定</div>
+    <div class="setting-group">
+      <label class="setting-label">系統管理員員工編號（多人用逗號分隔）</label>
+      <input type="text" class="setting-input" id="sys_adminIds" placeholder="如：A001,A002">
+    </div>
+    <div class="setting-group">
+      <label class="setting-label">綁定驗證碼</label>
+      <input type="text" class="setting-input" id="sys_bindCode" placeholder="預設：HR0000">
+    </div>
+    <div class="btn-group" style="padding:0;margin-top:12px">
+      <button class="btn btn-primary" onclick="saveSysSettings()">儲存設定</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── 日誌 ── -->
 <div class="tab-content" id="tab-logs">
   <div style="padding:8px">
@@ -113,24 +165,35 @@
 
 <div class="toast" id="toast"></div>
 
-<script>
-const LIFF_ID = '2009611318-5UphK9JK';
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOdcFoG1vsk6w_ginSdxyWQSc-PgLgHcvk6qMILMPeRh0h5CMutT1c-4EFZcQVhBq9/exec';
+<!-- inline confirm overlay (replaces browser confirm()) -->
+<div id="confirm-overlay" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(0,0,0,0.45);display:flex;align-items:flex-end;justify-content:center;padding-bottom:32px">
+  <div style="background:#1e2433;border-radius:12px;padding:20px 16px;width:90%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,0.4)">
+    <div id="confirm-msg" style="font-size:14px;color:#e0e6f0;margin-bottom:16px;line-height:1.5"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="_confirmCancel()" style="flex:1;padding:10px;background:rgba(255,255,255,0.1);color:#aaa;border:none;border-radius:8px;cursor:pointer;font-size:14px">取消</button>
+      <button id="confirm-ok-btn" onclick="_confirmOk()" style="flex:1;padding:10px;background:#e53935;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:bold">確定</button>
+    </div>
+  </div>
+</div>
 
+<script>
 const params = new URLSearchParams(location.search);
-let lineUid = decodeURIComponent(params.get('uid') || '') || localStorage.getItem('liff_uid') || '';
+let lineUid = decodeURIComponent(params.get('uid') || '') || localStorage.getItem(LS_UID) || '';
 
 let _allAccounts = [];
 let _logsCache   = [];
 
+// homeLink already points to dashboard.html in HTML; lineUid is read from localStorage there
+
 function switchTab(tab) {
-  const tabs = ['status', 'simulate', 'accounts', 'logs'];
+  const tabs = ['status', 'simulate', 'accounts', 'settings', 'logs'];
   document.querySelectorAll('.tab-btn').forEach((btn, i) => btn.classList.toggle('active', tabs[i] === tab));
   document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
   document.getElementById('tab-' + tab).classList.add('active');
   if (tab === 'status')    loadStatus();
   if (tab === 'simulate')  loadSimulateTab();
   if (tab === 'accounts')  loadAccounts();
+  if (tab === 'settings')  loadSysSettings();
   if (tab === 'logs')      loadLogs();
 }
 
@@ -167,17 +230,31 @@ async function loadStatus() {
 // ── 模擬視角 ─────────────────────────────────────────────────────
 
 async function loadSimulateTab() {
-  const accounts = await callGAS('apiGetAllAccounts', [lineUid]);
-  if (!accounts || accounts.error) return;
+  const accounts = await callGAS('apiGetAllAccounts', [lineUid, IS_TEST]);
+  if (!accounts || accounts.error) {
+    showToast('❌ ' + ((accounts && accounts.error) || '無法載入帳號清單'));
+    document.getElementById('simAccountSelect').innerHTML = '<option value="">-- 載入失敗，請重試 --</option>';
+    return;
+  }
   _allAccounts = accounts;
 
-  const opts = accounts.map(a =>
-    `<option value="${a.lineUid}" data-role="${a.role || ''}" data-name="${a.name}">${a.name}（${a.role || '同仁'}）</option>`
-  ).join('');
+  // 顯示所有有 UID 的帳號；測試環境優先用 testUid，無 testUid 則回退 lineUid
+  const opts = accounts
+    .filter(a => a.lineUid || a.testUid)
+    .map(a => {
+      const uid = (IS_TEST && a.testUid) ? a.testUid : a.lineUid;
+      if (!uid) return '';
+      const note = IS_TEST && !a.testUid ? '【未綁測試】' : '';
+      return `<option value="${escHtml(uid)}" data-role="${escHtml(a.role || '')}" data-name="${escHtml(a.name)}">${escHtml(a.name)}（${escHtml(a.role || '同仁')}）${note}</option>`;
+    }).filter(Boolean).join('');
 
-  // 主頁選單
+  if (!opts) {
+    document.getElementById('simAccountSelect').innerHTML = '<option value="">-- 尚無已綁定帳號 --</option>';
+    document.getElementById('simViewSwitch').innerHTML = '';
+    return;
+  }
+
   document.getElementById('simAccountSelect').innerHTML = '<option value="">-- 請選擇帳號 --</option>' + opts;
-  // 覆蓋層裡的切換下拉
   document.getElementById('simViewSwitch').innerHTML = opts;
 }
 
@@ -204,7 +281,7 @@ async function openSimView() {
 }
 
 async function _loadSimManagerView(targetUid) {
-  const data = await callGAS('apiGetManagerDashboard', [lineUid, targetUid]);
+  const data = await callGAS('apiGetManagerDashboard', [lineUid, targetUid, IS_TEST]);
   if (!data || data.error) {
     document.getElementById('simContent').innerHTML =
       `<div class="loading" style="color:#f44336">${(data && data.error) || '無法載入'}</div>`;
@@ -237,7 +314,7 @@ async function _loadSimManagerView(targetUid) {
 }
 
 async function _loadSimHRView(targetUid) {
-  const status = await callGAS('apiGetAllStatus', [lineUid]);
+  const status = await callGAS('apiGetAllStatus', [lineUid, IS_TEST]);
   if (!status || status.error) {
     document.getElementById('simContent').innerHTML =
       `<div class="loading" style="color:#f44336">${(status && status.error) || '無法載入'}</div>`;
@@ -249,13 +326,13 @@ async function _loadSimHRView(targetUid) {
     status.map(s => {
       const pct = s.total > 0 ? Math.round(s.scored / s.total * 100) : 0;
       const color = pct === 100 ? '#2e7d32' : pct > 0 ? '#f57f17' : '#9e9e9e';
-      return `<div style="background:white;border-radius:8px;padding:12px 16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+      return `<div class="list-card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-          <span style="font-weight:bold;font-size:15px">${s.managerName}</span>
+          <span style="font-weight:bold;font-size:15px">${escHtml(s.managerName)}</span>
           <span style="font-size:13px;font-weight:bold;color:${color}">${pct}%</span>
         </div>
-        <div style="font-size:12px;color:#888;margin-bottom:6px">已評 ${s.scored} / 共 ${s.total} 人</div>
-        <div style="height:4px;background:#f0f0f0;border-radius:2px">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">已評 ${s.scored} / 共 ${s.total} 人</div>
+        <div style="height:4px;background:rgba(255,255,255,0.15);border-radius:2px">
           <div style="height:100%;width:${pct}%;background:${color};border-radius:2px"></div>
         </div>
       </div>`;
@@ -291,7 +368,7 @@ async function switchSimAccount(sel) {
 
 async function loadAccounts() {
   document.getElementById('accountList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
-  const accounts = await callGAS('apiGetAllAccounts', [lineUid]);
+  const accounts = await callGAS('apiGetAllAccounts', [lineUid, IS_TEST]);
   if (!accounts || accounts.error) {
     document.getElementById('accountList').innerHTML =
       `<div class="loading" style="color:#f44336">${(accounts && accounts.error) || '無法載入'}</div>`;
@@ -302,35 +379,53 @@ async function loadAccounts() {
     return;
   }
   document.getElementById('accountList').innerHTML = accounts.map(a => `
-    <div style="background:white;border-radius:8px;padding:12px 16px;margin-bottom:8px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+    <div class="list-card">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div>
-          <div style="font-weight:bold;font-size:15px">${a.name}</div>
-          <div style="font-size:12px;color:#888;margin-top:2px">${a.role || '同仁'} ｜ ${a.phone || '未填電話'}</div>
-          <div style="font-size:11px;color:#bbb;margin-top:2px">綁定：${a.boundAt}</div>
+          <div style="font-weight:bold;font-size:15px">${escHtml(a.name)}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:2px">${escHtml(a.role || '同仁')} ｜ ${escHtml(a.phone) || '未填電話'}</div>
+          <div style="font-size:11px;color:var(--text-sub);margin-top:2px">綁定：${escHtml(a.boundAt)}</div>
         </div>
         <button class="btn btn-danger" style="flex:none;padding:8px 14px;font-size:13px"
-                onclick="resetAccount('${a.lineUid}', '${a.name}')">取消綁定</button>
+                data-uid="${escHtml(a.lineUid)}" data-name="${escHtml(a.name)}"
+                onclick="resetAccount(this.dataset.uid, this.dataset.name)">取消綁定</button>
       </div>
     </div>`).join('');
 }
 
+let _pendingConfirm = null;
+function showConfirm(msg, okLabel, onOk) {
+  document.getElementById('confirm-msg').textContent = msg;
+  document.getElementById('confirm-ok-btn').textContent = okLabel || '確定';
+  _pendingConfirm = onOk;
+  document.getElementById('confirm-overlay').style.display = 'flex';
+}
+function _confirmOk() {
+  document.getElementById('confirm-overlay').style.display = 'none';
+  if (_pendingConfirm) { _pendingConfirm(); _pendingConfirm = null; }
+}
+function _confirmCancel() {
+  document.getElementById('confirm-overlay').style.display = 'none';
+  _pendingConfirm = null;
+}
+
 async function resetAccount(targetUid, name) {
-  if (!confirm(`確認取消 ${name} 的帳號綁定？`)) return;
-  const result = await callGAS('apiResetAccount', [lineUid, targetUid]);
-  if (result.error) {
-    showToast('❌ ' + result.error);
-  } else {
-    showToast(`✅ 已取消 ${name} 的綁定`);
-    loadAccounts();
-  }
+  showConfirm(`確認取消 ${name} 的帳號綁定？`, '確定取消綁定', async () => {
+    const result = await callGAS('apiResetAccount', [lineUid, targetUid, IS_TEST]);
+    if (result.error) {
+      showToast('❌ ' + result.error);
+    } else {
+      showToast(`✅ 已取消 ${name} 的綁定`);
+      loadAccounts();
+    }
+  });
 }
 
 // ── 日誌 ─────────────────────────────────────────────────────────
 
 async function loadLogs() {
   document.getElementById('logList').innerHTML = '<div class="loading"><div class="spinner"></div>載入中...</div>';
-  const logs = await callGAS('apiGetLogs', [lineUid]);
+  const logs = await callGAS('apiGetLogs', [lineUid, IS_TEST]);
   if (!logs || logs.error) {
     document.getElementById('logList').innerHTML =
       `<div class="loading" style="color:#f44336">${(logs && logs.error) || '無法載入'}</div>`;
@@ -349,31 +444,50 @@ function renderLogs() {
   }
   const levelColor = { ERROR: '#f44336', WARN: '#f57f17', INFO: '#1565c0' };
   document.getElementById('logList').innerHTML = logs.map(l => `
-    <div style="background:white;border-radius:6px;padding:10px 12px;margin-bottom:6px;box-shadow:0 1px 3px rgba(0,0,0,0.06);border-left:3px solid ${levelColor[l.level] || '#ccc'}">
+    <div style="background:var(--card);border:1px solid var(--card-border);border-radius:8px;padding:10px 12px;margin-bottom:6px;border-left:3px solid ${levelColor[l.level] || 'var(--card-border)'}">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-        <span style="font-size:11px;font-weight:bold;color:${levelColor[l.level] || '#888'}">${l.level}</span>
-        <span style="font-size:11px;color:#aaa">${l.time}</span>
+        <span style="font-size:11px;font-weight:bold;color:${levelColor[l.level] || 'var(--text-muted)'}">${l.level}</span>
+        <span style="font-size:11px;color:var(--text-sub)">${l.time}</span>
       </div>
-      <div style="font-size:13px;color:#333">[${l.fn}] ${l.msg}</div>
-      ${l.detail ? `<div style="font-size:11px;color:#888;margin-top:4px;word-break:break-all">${l.detail}</div>` : ''}
+      <div style="font-size:13px;color:var(--text)">[${escHtml(l.fn)}] ${escHtml(l.msg)}</div>
+      ${l.detail ? `<div style="font-size:11px;color:var(--text-muted);margin-top:4px;word-break:break-all">${escHtml(l.detail)}</div>` : ''}
     </div>`).join('');
 }
 
+// ── 系統設定 ─────────────────────────────────────────────────────
+
+async function loadSysSettings() {
+  const settings = await callGAS('apiGetSettings', []);
+  const toDate = v => {
+    if (!v) return '';
+    const d = new Date(v);
+    return isNaN(d) ? '' : d.toISOString().split('T')[0];
+  };
+  document.getElementById('sys_period').value   = settings['評分期間描述'] || '';
+  document.getElementById('sys_start').value    = toDate(settings['評分開始日']);
+  document.getElementById('sys_end').value      = toDate(settings['評分截止日']);
+  document.getElementById('sys_notify1').value  = toDate(settings['通知時間點1']);
+  document.getElementById('sys_notify2').value  = toDate(settings['通知時間點2']);
+  document.getElementById('sys_quarter').value  = settings['當前季度'] || '';
+  document.getElementById('sys_adminIds').value = settings['系統管理員員工編號'] || '';
+  document.getElementById('sys_bindCode').value = settings['綁定驗證碼'] || '';
+}
+
+async function saveSysSettings() {
+  const result = await callGAS('apiUpdateSettings', [lineUid, {
+    '評分期間描述':     document.getElementById('sys_period').value,
+    '評分開始日':       document.getElementById('sys_start').value,
+    '評分截止日':       document.getElementById('sys_end').value,
+    '通知時間點1':      document.getElementById('sys_notify1').value,
+    '通知時間點2':      document.getElementById('sys_notify2').value,
+    '當前季度':         document.getElementById('sys_quarter').value,
+    '系統管理員員工編號': document.getElementById('sys_adminIds').value,
+    '綁定驗證碼':       document.getElementById('sys_bindCode').value,
+  }]);
+  showToast(result.error ? '❌ ' + result.error : '✅ 設定已儲存');
+}
+
 // ── 共用 ─────────────────────────────────────────────────────────
-
-function callGAS(action, args) {
-  return fetch(GAS_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action, args: args || [] }),
-  }).then(r => r.json());
-}
-
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
 
 loadStatus();
 </script>
